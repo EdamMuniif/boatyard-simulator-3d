@@ -57,7 +57,7 @@
     window.setTimeout(() => {
       if (!window.__boatyardGame) {
         const el = document.getElementById('fatalError');
-        el.textContent = 'The Three.js library could not load. Check your internet connection, open this project from a local web server, and refresh.';
+        el.textContent = 'Game did not initialize. Check the browser console for a failed JavaScript module, blocked Three.js CDN request, or WebGL error.';
         el.classList.remove('hidden');
       }
     }, 12000);

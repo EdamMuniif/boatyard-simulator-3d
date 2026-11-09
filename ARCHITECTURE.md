@@ -10,17 +10,17 @@ Create a small reproducible game built around the complete ferry-to-dry-dock loo
 index.html / styles.css
           │ user input + HUD
           ▼
-  src/main.js (DockyardGame)
+  main.js (DockyardGame)
       │         │          ├─ camera and render loop
       │         │          ├─ walking / vessel / hoist arcade motion
       │         │          └─ waypoint and minimap presentation
       │         ▼
-      │    src/rules.js
+      │    rules.js
       │    phase metadata + conditions
       ▼
   Three.js scene graph
-      ├─ src/world.js     ambient light, ground, water, basin, prop scenery
-      └─ src/geometry.js  player, ferry, travel lift, rigging, markers
+      ├─ world.js     ambient light, ground, water, basin, prop scenery
+      └─ geometry.js  player, ferry, travel lift, rigging, markers
 ```
 
 ### Mission state machine
@@ -37,7 +37,7 @@ Transitions are gated by location and velocity, except the explicit user interac
 - `HAUL → LOWER`: hoist stopped at docking target with sufficient lifting height.
 - `LOWER → COMPLETE`: simulated lowering meets the placeholder support elevation.
 
-The single source of gameplay rule constants is `src/rules.js`; edit thresholds there before adding more difficulty presets.
+The single source of gameplay rule constants is `rules.js`; edit thresholds there before adding more difficulty presets.
 
 ### Coordinate convention
 

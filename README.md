@@ -6,7 +6,7 @@ A playable browser game prototype inspired by a waterfront vessel-repair yard an
 
 ## Run the game
 
-Unzip the folder, open a terminal inside `boatyard-simulator-v0.1`, and start a simple web server:
+Clone the repository (or unzip the download), open a terminal inside the project root, and start a simple web server:
 
 ```bash
 python3 -m http.server 8080
@@ -50,19 +50,20 @@ The interface shows the next objective and distance to the waypoint. A minimap t
 
 ## Project structure
 
+The GitHub repository uses a flat root-level source layout:
+
 ```text
-boatyard-simulator-v0.1/
-├─ index.html            # HUD, overlays, input controls, pinned ES import map
-├─ styles.css            # Desktop and responsive touch interface
-├─ src/
-│  ├─ main.js             # Renderer, input, movement, cameras and mission orchestration
-│  ├─ world.js            # Sea, basin, concrete yard, workshops and static props
-│  ├─ geometry.js         # Procedural travel lift, ferry, avatar and waypoint models
-│  └─ rules.js            # Pure mission definitions, positional tolerances and checks
-├─ tests/
-│  └─ rules.test.mjs      # Automated tests for the mission rules
-└─ docs/
-   └─ ARCHITECTURE.md    # Scene architecture, assumptions and extension path
+boatyard-simulator-3d/
+├─ index.html          # HUD, overlays, and Three.js entry point
+├─ styles.css          # Responsive interface
+├─ main.js             # Game loop, controls, cameras and mission flow
+├─ world.js            # Shipyard, basin, water and scenery
+├─ geometry.js         # Ferry, travel lift, player and markers
+├─ rules.js            # Mission state definitions and checks
+├─ rules.test.mjs      # Automated mission-rule tests
+├─ package.json        # Syntax and test commands
+├─ ARCHITECTURE.md     # Design notes
+└─ .github/workflows/  # GitHub Pages deployment
 ```
 
 ## Verification performed

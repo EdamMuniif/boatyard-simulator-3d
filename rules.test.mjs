@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock} from '../src/rules.js';
+import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock} from './rules.js';
 assert.equal(PHASES.length,8);
 assert.equal(PHASES[0].id,'DISPATCH');
 assert.equal(PHASES.at(-1).id,'COMPLETE');
