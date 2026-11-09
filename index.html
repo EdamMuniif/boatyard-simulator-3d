@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#071726" />
+  <meta name="description" content="Boatyard Simulator 3D — pilot a ferry, drive a travel lift, and dry-dock your vessel." />
+  <title>Boatyard Simulator 3D | Prototype 0.1</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <div id="game" aria-label="3D boatyard game viewport"></div>
+  <div id="crosshair" aria-hidden="true">+</div>
+  <header class="game-header">
+    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.1</small></div></div>
+    <div class="top-stats"><div><small>MISSION</small><b>01 / 01</b></div><div><small>COMPLETED</small><b id="score">00</b></div><div><small>SIM STATUS</small><b id="modeLabel">ON FOOT</b></div></div>
+  </header>
+  <section id="missionPanel" class="mission-panel" aria-live="polite">
+    <div class="panel-eyebrow"><span class="pulse-dot"></span> ACTIVE CONTRACT <span class="panel-index">MISSION 01</span></div>
+    <h1>FERRY DRY-DOCK</h1>
+    <p id="objective">Reach the harbor dispatch marker.</p>
+    <div class="mission-meter"><span id="missionMeter"></span></div>
+    <div class="mission-status"><span id="phaseCount">01 / 08</span><span id="distanceLabel">—</span></div>
+    <div id="hint" class="hint">WASD to walk • E to interact</div>
+  </section>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="reticle-label">OBJECTIVE <span id="waypointName">HARBOR DISPATCH</span></div>
+  <div class="bottom-hud">
+    <div class="map-wrap"><div class="map-heading"><span class="small-gold">●</span> YARD NAV <span id="mapZoom">N</span></div><canvas id="minimap" width="240" height="240" aria-label="Map of the shipyard"></canvas><div class="map-legend"><span class="map-self">●</span> YOU <span class="map-goal">◆</span> TARGET</div></div>
+    <div class="instrument"><div class="instrument-head"><span id="vehicleName">ON FOOT</span><span id="speedUnit">m/s</span></div><div class="speed-row"><span id="speed">0.0</span><div class="speed-side"><small>SPEED</small><span id="liftReading">HOIST READY</span></div></div><div class="instrument-foot" id="instrumentFoot">WASD MOVE · SHIFT SPRINT</div></div>
+  </div>
+  <div class="desktop-guide" id="desktopGuide">WASD / ARROWS <b>MOVE</b> &nbsp;·&nbsp; E <b>ACTION</b> &nbsp;·&nbsp; R / F <b>LIFT</b> &nbsp;·&nbsp; C <b>CAMERA</b> &nbsp;·&nbsp; SPACE <b>BRAKE</b> &nbsp;·&nbsp; P <b>PAUSE</b></div>
+  <div class="mobile-controls" aria-label="Touch game controls">
+    <div id="joystick" class="joystick"><div class="joystick-base"><div id="joystickThumb" class="joystick-thumb"></div></div><span>MOVE / STEER</span></div>
+    <div class="mobile-buttons"><button type="button" id="touchCamera" class="round-button secondary">CAM</button><button type="button" id="touchAction" class="round-button action">E<span>ACTION</span></button><button type="button" id="touchRaise" class="round-button small">▲<span>RAISE</span></button><button type="button" id="touchLower" class="round-button small">▼<span>LOWER</span></button><button type="button" id="touchBrake" class="round-button small brake">■<span>BRAKE</span></button></div>
+  </div>
+  <div class="screen-overlay" id="startScreen">
+    <div class="hero-card">
+      <div class="hero-stripe">THILAFUSHI // SIMULATION BAY 01</div>
+      <div class="hero-kicker">INDUSTRIAL MARINE SIMULATOR</div>
+      <h2>BOATYARD<br /><em>SIMULATOR</em> 3D</h2>
+      <div class="hero-line"></div>
+      <p>Bring a ferry in from the harbor. Take control of the 200T-inspired travel lift. Haul your vessel across the yard and complete its dry-docking mission.</p>
+      <div class="hero-specs"><span>THIRD-PERSON WORLD</span><span>VESSEL PILOTING</span><span>TRAVEL LIFT</span></div>
+      <button id="startButton" type="button" class="primary-button">START MISSION <span>→</span></button>
+      <small class="disclaimer">Fictionalized equipment physics. This game is not an operator-training or lifting-planning tool.</small>
+    </div>
+  </div>
+  <div class="screen-overlay hidden" id="pauseScreen"><div class="dialog"><h2>PAUSED</h2><p>Your shipyard mission is paused.</p><button id="resumeButton" class="primary-button">RESUME</button><button id="restartFromPause" class="plain-button">RESTART MISSION</button></div></div>
+  <div class="screen-overlay hidden" id="completeScreen"><div class="dialog complete-dialog"><div class="mission-success">CONTRACT COMPLETE</div><h2>VESSEL<br />DRY-DOCKED</h2><p>Ferry delivered to the assigned docking bay.</p><div class="finish-score"><span>REWARD</span><strong>+1,500 XP</strong></div><button id="restartButton" class="primary-button">PLAY AGAIN <span>↻</span></button></div></div>
+  <div id="fatalError" class="fatal-error hidden" role="alert"></div>
+  <script type="module" src="./src/main.js"></script>
+  <script>
+    window.setTimeout(() => {
+      if (!window.__boatyardGame) {
+        const el = document.getElementById('fatalError');
+        el.textContent = 'The Three.js library could not load. Check your internet connection, open this project from a local web server, and refresh.';
+        el.classList.remove('hidden');
+      }
+    }, 12000);
+  </script>
+</body>
+</html>
