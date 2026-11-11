@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {createWorld} from './world.js';
 import {createHoist,createFerry,createPlayer,createWaypoint} from './geometry.js';
-import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock} from './rules.js';
+import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock,checkpointForPhase} from './rules.js';
+import {canWalkAt,canFerryAt,canHoistAt,sweepVehicle} from './collision.js';
 
 const $=id=>document.getElementById(id);
 const clamp=THREE.MathUtils.clamp;
@@ -21,6 +22,10 @@ class DockyardGame {
     this.renderer.shadowMap.enabled=true;
     this.renderer.shadowMap.type=THREE.PCFShadowMap;
     gameEl.appendChild(this.renderer.domElement);
+    this.renderer.domElement.addEventListener('webglcontextlost',e=>{
+      e.preventDefault();this.paused=true;this.keys={};
+      showFatal('3D graphics context lost. Reload the game to recover.');
+    });
     this.camera=new THREE.PerspectiveCamera(60,window.innerWidth/window.innerHeight,.2,800);
     this.world=createWorld();
     this.scene=this.world.scene;
@@ -75,6 +80,7 @@ class DockyardGame {
       this.keys[e.code]=true;
       if(e.repeat)return;
       if(e.code==='KeyP'||e.code==='Escape'){this.togglePause();return;}
+      if(e.code==='KeyT'){this.recoverCheckpoint();return;}
       if(!this.started||this.paused)return;
       if(e.code==='KeyE')this.action();
       if(e.code==='KeyC')this.switchCamera();
@@ -116,6 +122,8 @@ class DockyardGame {
     $('restartFromPause').addEventListener('click',()=>window.location.reload());
     $('touchAction').addEventListener('click',()=>this.action());
     $('touchCamera').addEventListener('click',()=>this.switchCamera());
+    $('recoverButton').addEventListener('click',()=>this.recoverCheckpoint());
+    $('recoverFromPause').addEventListener('click',()=>this.recoverCheckpoint());
   }
   action(){
     if(!this.started||this.paused)return;
@@ -146,6 +154,28 @@ class DockyardGame {
     }else if(stage==='HAUL')this.notify('Drive to Bay 03 and stop inside the docking marker.');
     else if(stage==='COMPLETE')window.location.reload();
   }
+  recoverCheckpoint(){
+    if(!this.started||this.phaseId==='COMPLETE')return;
+    const state=checkpointForPhase(this.phaseId);
+    if(!state)return;
+    this.mode=state.mode;
+    this.avatar.position.set(state.avatar.x,state.avatar.y,state.avatar.z);
+    this.ferry.root.position.set(state.ferry.x,state.ferry.y,state.ferry.z);
+    this.hoist.root.position.set(state.hoist.x,state.hoist.y,state.hoist.z);
+    this.ferryHeading=state.ferryHeading;this.hoistHeading=state.hoistHeading;
+    this.ferry.root.rotation.y=state.ferryHeading;
+    this.hoist.root.rotation.y=state.hoistHeading;
+    this.ferrySpeed=0;this.hoistSpeed=0;
+    this.liftHeight=state.liftHeight;this.attached=state.attached;
+    this.hoist.setRigging(this.liftHeight,this.attached);
+    this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false};
+    $('joystickThumb').style.transform='translate(0,0)';
+    this.cameraMode=0;this.orbitYaw=0;this.orbitPitch=0;
+    this.paused=false;$('pauseScreen').classList.add('hidden');
+    document.body.classList.remove('paused');
+    this.updateWaypoint();this.updateUI();
+    this.notify('CHECKPOINT RESTORED // Current mission stage restarted.',2600);
+  }
   switchCamera(){if(!this.started)return;this.cameraMode=(this.cameraMode+1)%3;this.notify(['CHASE CAMERA','TACTICAL OVERHEAD CAMERA','SIDE INSPECTION CAMERA'][this.cameraMode],1200);}
   axes(){
     const hor=(this.keys.KeyD||this.keys.ArrowRight?1:0)-(this.keys.KeyA||this.keys.ArrowLeft?1:0)+this.touch.x;
@@ -156,8 +186,11 @@ class DockyardGame {
     const {hor,ver}=this.axes();if(!hor&&!ver)return;
     const speed=(this.keys.ShiftLeft||this.keys.ShiftRight)?7.0:4.7;
     let dx=hor,dz=ver;const len=Math.hypot(dx,dz);dx/=len;dz/=len;
-    const nx=clamp(this.avatar.position.x+dx*speed*dt,-72,72),nz=clamp(this.avatar.position.z+dz*speed*dt,-8,172);
-    if(!(nz<32.7&&Math.abs(nx)<10.8)){this.avatar.position.set(nx,0,nz);}
+    const p=this.avatar.position;
+    // Resolve one axis at a time so the player slides along buildings and quay edges.
+    const nx=p.x+dx*speed*dt,nz=p.z+dz*speed*dt;
+    if(canWalkAt({x:nx,z:p.z}))p.x=nx;
+    if(canWalkAt({x:p.x,z:nz}))p.z=nz;
     this.avatar.rotation.y=Math.atan2(dx,dz);
   }
   advanceFerry(dt){
@@ -168,9 +201,13 @@ class DockyardGame {
     this.ferryHeading=clamp(this.ferryHeading,-1.25,1.25);
     const p=this.ferry.root.position;const nx=p.x+Math.sin(this.ferryHeading)*this.ferrySpeed*dt;
     const nz=p.z+Math.cos(this.ferryHeading)*this.ferrySpeed*dt;
-    if(nz>-6&&nz<36&&Math.abs(nx)>6.3){this.ferrySpeed=0;this.notifyLimited('Avoid contact with the basin walls.');}
-    else{p.x=clamp(nx,-68,68);p.z=clamp(nz,-130,24);if(nz>24)this.ferrySpeed=0;}
-    this.ferry.root.rotation.y=this.ferryHeading;
+    const oldHeading=this.ferry.root.rotation.y;
+    if(sweepVehicle(p,{x:nx,z:nz},oldHeading,this.ferryHeading,canFerryAt)){
+      p.x=nx;p.z=nz;this.ferry.root.rotation.y=this.ferryHeading;
+    }else{
+      this.ferryHeading=oldHeading;this.ferrySpeed=0;
+      this.notifyLimited('SHORE CONTACT // Reposition the ferry.');
+    }
     // Gentle water motion, game stylization only.
     this.ferry.root.position.y=.07+Math.sin(performance.now()*.0013)*.045;
   }
@@ -182,13 +219,17 @@ class DockyardGame {
     const drag=drivingAllowed?1.25:7.0;
     this.hoistSpeed=clamp(this.hoistSpeed+throttle*4.5*dt-this.hoistSpeed*drag*dt,-4.25,5.25);
     if(this.keys.Space||this.touch.brake)this.hoistSpeed=damp(this.hoistSpeed,0,8,dt);
-    if(drivingAllowed){this.hoistHeading+=hor*this.hoistSpeed*.12*dt;}
     const p=this.hoist.root.position;
-    const nx=p.x+Math.sin(this.hoistHeading)*this.hoistSpeed*dt;
-    const nz=p.z+Math.cos(this.hoistHeading)*this.hoistSpeed*dt;
-    // Keep all wheel stations on the simplified paved terrain.
-    if(Math.abs(nx)>55||nz<16||nz>156){this.hoistSpeed=0;this.notifyLimited('YARD LIMIT // Keep the travel lift on the paved route.');}
-    else {p.x=nx;p.z=nz;}
+    const oldHeading=this.hoistHeading;
+    const proposedHeading=oldHeading+(drivingAllowed?hor*this.hoistSpeed*.12*dt:0);
+    const nx=p.x+Math.sin(proposedHeading)*this.hoistSpeed*dt;
+    const nz=p.z+Math.cos(proposedHeading)*this.hoistSpeed*dt;
+    if(sweepVehicle(p,{x:nx,z:nz},oldHeading,proposedHeading,canHoistAt)){
+      p.x=nx;p.z=nz;this.hoistHeading=proposedHeading;
+    }else{
+      this.hoistSpeed=0;
+      this.notifyLimited('YARD OBSTACLE // Reposition the travel lift.');
+    }
     this.hoist.root.rotation.y=this.hoistHeading;
     this.hoist.wheels.forEach(w=>{w.rotation.x+=this.hoistSpeed*dt/2.08;});
     const raising=(this.keys.KeyR||this.touch.raise)&&stage==='LIFT';
@@ -267,6 +308,7 @@ class DockyardGame {
     action.style.display=['DISPATCH','SAIL','BOARD_HOIST','POSITION'].includes(this.phaseId)?'block':'none';
     $('touchRaise').style.opacity=this.phaseId==='LIFT'?'1':'.35';
     $('touchLower').style.opacity=this.phaseId==='LOWER'?'1':'.35';
+    $('recoverButton').disabled=!this.started||this.phaseId==='COMPLETE';
   }
   drawMap(){
     const cvs=$('minimap'),ctx=cvs.getContext('2d');const W=cvs.width,H=cvs.height;
@@ -296,9 +338,14 @@ class DockyardGame {
   onResize(){this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.65));this.renderer.setSize(innerWidth,innerHeight);}
   animate(now){
     const dt=clamp((now-this.frameTime)/1000,0,.05);this.frameTime=now;
-    this.update(dt);this.renderer.render(this.scene,this.camera);
+    try{this.update(dt);this.renderer.render(this.scene,this.camera);}
+    catch(error){console.error(error);showFatal(`Game runtime error: ${error.message}`);return;}
     requestAnimationFrame(this.animate);
   }
 }
+function showFatal(message){
+  const el=$('fatalError'),target=$('fatalMessage');
+  if(el&&target){target.textContent=message;el.classList.remove('hidden');}
+}
 try{game=new DockyardGame();window.__boatyardGame=game;}
-catch(error){console.error(error);$('fatalError').textContent=`3D rendering could not start: ${error.message}. Use a browser with WebGL support and an internet connection for the Three.js library.`;$('fatalError').classList.remove('hidden');}
+catch(error){console.error(error);showFatal(`3D rendering could not start: ${error.message}`);}
