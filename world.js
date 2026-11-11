@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {box,cylinder,textTexture,createWaypoint,PALETTE} from './geometry.js';
+import {WORKSHOPS,CARGO_STACKS,FORKLIFTS} from './collision.js';
 
 const wall = new THREE.MeshStandardMaterial({color:'#587383',roughness:.89});
 const roofMat = new THREE.MeshStandardMaterial({color:'#3c667a',roughness:.7,metalness:.33});
@@ -136,19 +137,15 @@ export function createWorld(){
   const walkways=[[-18,42],[-18,47],[-18,52]];
   for(const [x,z] of walkways)box(scene,2,.02,.15,x,.04,z,yellowLine,false);
   // Workshops and warehouses flank the playable transport corridor.
-  workshop(scene,-49,101,29,39,13,'MARINE ENGINEERING');
-  workshop(scene,56,61,30,33,11,'FABRICATION');
-  workshop(scene,-49,151,32,23,12,'FIBRE & WOOD WORKS');
-  workshop(scene,54,151,33,27,12,'VESSEL SERVICES');
-  stackedCargo(scene,-52,52);
-  stackedCargo(scene,55,33);
-  forklift(scene,-26,78,.7);forklift(scene,52,94,-.4);
+  for(const o of WORKSHOPS)workshop(scene,o.x,o.z,o.w,o.d,o.h,o.name);
+  for(const o of CARGO_STACKS)stackedCargo(scene,o.x,o.z);
+  for(const o of FORKLIFTS)forklift(scene,o.x,o.z,o.heading);
   worker(scene,-30,60);worker(scene,49,103);worker(scene,-21,119,'#f3d756');worker(scene,28,79);
   pierBollards(scene);
   beacon(scene,-8,5);beacon(scene,8,5);
   // Yard prop piles, containers, barriers, and a crane silhouette.
   for(const x of [-63,-58,-53])for(const z of [23,29])box(scene,2.4,1.55,3.2,x,.8,z,rust);
-  for(let i=0;i<7;i++)box(scene,1.8,.8,5,48+i*.7,.4,126+i*1.05,PALETTE.steel);
+  for(let i=0;i<7;i++)box(scene,1.8,.8,5,60+i*.7,.4,126+i*1.05,PALETTE.steel);
   box(scene,2,6,2,67,3,-.8,PALETTE.hoistDark);
   box(scene,20,.7,1,60,7,-1,PALETTE.hoistDark).rotation.z=.15;
   // Actual docking target has multiple steel support stands.

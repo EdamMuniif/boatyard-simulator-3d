@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#071726" />
   <meta name="description" content="Boatyard Simulator 3D — pilot a ferry, drive a travel lift, and dry-dock your vessel." />
-  <title>Boatyard Simulator 3D | Prototype 0.1</title>
+  <title>Boatyard Simulator 3D | Prototype 0.2</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
@@ -15,7 +15,7 @@
   <div id="game" aria-label="3D boatyard game viewport"></div>
   <div id="crosshair" aria-hidden="true">+</div>
   <header class="game-header">
-    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.1</small></div></div>
+    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.2</small></div></div>
     <div class="top-stats"><div><small>MISSION</small><b>01 / 01</b></div><div><small>COMPLETED</small><b id="score">00</b></div><div><small>SIM STATUS</small><b id="modeLabel">ON FOOT</b></div></div>
   </header>
   <section id="missionPanel" class="mission-panel" aria-live="polite">
@@ -25,6 +25,7 @@
     <div class="mission-meter"><span id="missionMeter"></span></div>
     <div class="mission-status"><span id="phaseCount">01 / 08</span><span id="distanceLabel">—</span></div>
     <div id="hint" class="hint">WASD to walk • E to interact</div>
+    <button id="recoverButton" type="button" class="checkpoint-button" disabled title="Restore the start of this mission stage">↶ RECOVER STAGE (T)</button>
   </section>
   <div id="toast" role="status" aria-live="polite"></div>
   <div id="reticle-label">OBJECTIVE <span id="waypointName">HARBOR DISPATCH</span></div>
@@ -32,7 +33,7 @@
     <div class="map-wrap"><div class="map-heading"><span class="small-gold">●</span> YARD NAV <span id="mapZoom">N</span></div><canvas id="minimap" width="240" height="240" aria-label="Map of the shipyard"></canvas><div class="map-legend"><span class="map-self">●</span> YOU <span class="map-goal">◆</span> TARGET</div></div>
     <div class="instrument"><div class="instrument-head"><span id="vehicleName">ON FOOT</span><span id="speedUnit">m/s</span></div><div class="speed-row"><span id="speed">0.0</span><div class="speed-side"><small>SPEED</small><span id="liftReading">HOIST READY</span></div></div><div class="instrument-foot" id="instrumentFoot">WASD MOVE · SHIFT SPRINT</div></div>
   </div>
-  <div class="desktop-guide" id="desktopGuide">WASD / ARROWS <b>MOVE</b> &nbsp;·&nbsp; E <b>ACTION</b> &nbsp;·&nbsp; R / F <b>LIFT</b> &nbsp;·&nbsp; C <b>CAMERA</b> &nbsp;·&nbsp; SPACE <b>BRAKE</b> &nbsp;·&nbsp; P <b>PAUSE</b></div>
+  <div class="desktop-guide" id="desktopGuide">WASD / ARROWS <b>MOVE</b> &nbsp;·&nbsp; E <b>ACTION</b> &nbsp;·&nbsp; R / F <b>LIFT</b> &nbsp;·&nbsp; C <b>CAMERA</b> &nbsp;·&nbsp; SPACE <b>BRAKE</b> &nbsp;·&nbsp; P <b>PAUSE</b> &nbsp;·&nbsp; T <b>RECOVER</b></div>
   <div class="mobile-controls" aria-label="Touch game controls">
     <div id="joystick" class="joystick"><div class="joystick-base"><div id="joystickThumb" class="joystick-thumb"></div></div><span>MOVE / STEER</span></div>
     <div class="mobile-buttons"><button type="button" id="touchCamera" class="round-button secondary">CAM</button><button type="button" id="touchAction" class="round-button action">E<span>ACTION</span></button><button type="button" id="touchRaise" class="round-button small">▲<span>RAISE</span></button><button type="button" id="touchLower" class="round-button small">▼<span>LOWER</span></button><button type="button" id="touchBrake" class="round-button small brake">■<span>BRAKE</span></button></div>
@@ -49,16 +50,27 @@
       <small class="disclaimer">Fictionalized equipment physics. This game is not an operator-training or lifting-planning tool.</small>
     </div>
   </div>
-  <div class="screen-overlay hidden" id="pauseScreen"><div class="dialog"><h2>PAUSED</h2><p>Your shipyard mission is paused.</p><button id="resumeButton" class="primary-button">RESUME</button><button id="restartFromPause" class="plain-button">RESTART MISSION</button></div></div>
+  <div class="screen-overlay hidden" id="pauseScreen"><div class="dialog"><h2>PAUSED</h2><p>Your shipyard mission is paused.</p><button id="resumeButton" class="primary-button">RESUME</button><button id="recoverFromPause" class="plain-button">RECOVER CURRENT STAGE</button><button id="restartFromPause" class="plain-button">RESTART MISSION</button></div></div>
   <div class="screen-overlay hidden" id="completeScreen"><div class="dialog complete-dialog"><div class="mission-success">CONTRACT COMPLETE</div><h2>VESSEL<br />DRY-DOCKED</h2><p>Ferry delivered to the assigned docking bay.</p><div class="finish-score"><span>REWARD</span><strong>+1,500 XP</strong></div><button id="restartButton" class="primary-button">PLAY AGAIN <span>↻</span></button></div></div>
-  <div id="fatalError" class="fatal-error hidden" role="alert"></div>
+  <div id="fatalError" class="fatal-error hidden" role="alert"><p id="fatalMessage"></p><button id="fatalReload" class="primary-button" type="button">RELOAD GAME</button></div>
   <script type="module" src="./main.js"></script>
   <script>
+    const showStartupError = message => {
+      if (!window.__boatyardGame) {
+        document.getElementById('fatalMessage').textContent = message;
+        document.getElementById('fatalError').classList.remove('hidden');
+      }
+    };
+    window.addEventListener('error', event => showStartupError(`Game startup failed: ${event.message || 'Unable to load a script module.'}`));
+    window.addEventListener('unhandledrejection', event => showStartupError(`Game startup failed: ${String(event.reason?.message || event.reason || 'Module loading error')}`));
+    document.getElementById('fatalReload').addEventListener('click', () => location.reload());
     window.setTimeout(() => {
       if (!window.__boatyardGame) {
         const el = document.getElementById('fatalError');
-        el.textContent = 'Game did not initialize. Check the browser console for a failed JavaScript module, blocked Three.js CDN request, or WebGL error.';
-        el.classList.remove('hidden');
+        if (el.classList.contains('hidden')) {
+          document.getElementById('fatalMessage').textContent = 'Game startup timed out. Check your network, JavaScript console, and WebGL support, then reload.';
+          el.classList.remove('hidden');
+        }
       }
     }, 12000);
   </script>

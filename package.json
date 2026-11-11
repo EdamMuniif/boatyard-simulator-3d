@@ -1,13 +1,13 @@
 {
-  "name":"boatyard-simulator-3d",
-  "version":"0.1.0",
-  "private":true,
-  "type":"module",
-  "description":"Playable Three.js shipyard and travel-lift game prototype",
-  "scripts":{
-    "start":"python3 -m http.server 8080",
-    "test":"node --test *.test.mjs",
-    "check":"node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js"
+  "name": "boatyard-simulator-3d",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Playable Three.js shipyard and travel-lift game prototype",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test *.test.mjs",
+    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js"
   },
-  "license":"UNLICENSED"
+  "license": "UNLICENSED"
 }

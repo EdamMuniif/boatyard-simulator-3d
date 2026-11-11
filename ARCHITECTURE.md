@@ -1,4 +1,4 @@
-# Architecture — Boatyard Simulator 3D v0.1
+# Architecture — Boatyard Simulator 3D v0.2
 
 ## Objective and boundaries
 
@@ -16,7 +16,9 @@ index.html / styles.css
       │         │          └─ waypoint and minimap presentation
       │         ▼
       │    rules.js
-      │    phase metadata + conditions
+      │    phase metadata, conditions and checkpoints
+      │    collision.js
+      │    obstacle definitions and swept 2D overlap
       ▼
   Three.js scene graph
       ├─ world.js     ambient light, ground, water, basin, prop scenery
@@ -38,6 +40,16 @@ Transitions are gated by location and velocity, except the explicit user interac
 - `LOWER → COMPLETE`: simulated lowering meets the placeholder support elevation.
 
 The single source of gameplay rule constants is `rules.js`; edit thresholds there before adding more difficulty presets.
+
+### v0.2 collision and recovery contracts
+
+- `collision.js` defines the workshop, cargo and forklift positions reused by `world.js`, plus blocker geometry. Minor environmental props remain decorative.
+- The walkable world is the union of the main yard and both piers. Character movement uses a 2D circle with axis-wise sliding.
+- The ferry has a yawed rectangular footprint. Swept checks reject motion through quays and the basin end wall.
+- The travel lift has an oriented body footprint, swept checks against major yard obstacles, and simplified land-contact checks for four wheel stations. It intentionally straddles the basin; basin retaining walls are not body blockers.
+- Rotation and translation are checked together, preventing ordinary step-wise tunneling.
+- `checkpointForPhase` is defined in `rules.js`. Recovery repositions all entities and resets their velocity, heading and sling/lift state to a safe entry for the **current** stage. No progress is skipped or persisted.
+- Startup/runtime failures surface in the UI with a reload option. Node regression tests are not a substitute for desktop and mobile WebGL gameplay tests.
 
 ### Coordinate convention
 
