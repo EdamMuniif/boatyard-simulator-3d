@@ -68,7 +68,7 @@ The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled c
 
 ### Safety and verification constraints
 
-Visual labels and textures do not encode certified machinery ratings. The reference photo branding `MAX 200T` is not a verified specification for this 3D simulation. Never rely on the game for real vessel weight estimates, sling placement, clearances or operator procedures.
+Visual labels and textures do not encode certified machinery ratings. The in-game travel lift uses generic, fictional signage; no machine capacity is validated by this simulation. Never rely on the game for real vessel weight estimates, sling placement, clearances or operator procedures.
 
 ### Improvement strategy
 
