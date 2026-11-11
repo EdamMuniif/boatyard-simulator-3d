@@ -1,6 +1,6 @@
 {
   "name": "boatyard-simulator-3d",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "description": "Three.js boatyard simulator with hoist pivot/steering, animated character and ferry dry-docking",

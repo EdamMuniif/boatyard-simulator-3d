@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.3.2
+# Boatyard Simulator 3D — Prototype v0.3.3
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -35,7 +35,10 @@ On Windows, `py -m http.server 8080` is an alternative. If Python is not install
 | Orbit camera | Drag on 3D viewport | Drag on empty viewport |
 | Zoom camera | Mouse wheel | — |
 | Sprint on foot | Shift | — |
-| Pause / resume | P or Escape | — |
+| Pause / resume | P or Escape | PAUSE / RESUME button |
+| Open game controls | H | HELP button |
+| Expand or collapse mission instructions | MORE / LESS | MORE / LESS |
+| Show or hide mini-map | MAP button | MAP button |
 | Recover current mission stage | T or mission panel RECOVER button | RECOVER button |
 | Restart | Replay button after completion; pause menu | Replay button after completion |
 
@@ -58,7 +61,8 @@ The interface shows the next objective and distance to the waypoint. A minimap t
 ```text
 boatyard-simulator-3d/
 ├─ index.html          # HUD, overlays, import map and entry point
-├─ styles.css          # Responsive desktop/mobile UI
+├─ styles.css          # Base game UI
+├─ responsive-ui.css   # Device-safe adaptive layout and accessible touch controls
 ├─ main.js             # Renderer, control and mission orchestration
 ├─ world.js            # Harbor, yard, supports and props
 ├─ geometry.js         # Procedural vehicles, player and markers
@@ -76,6 +80,31 @@ boatyard-simulator-3d/
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
+
+## v0.3.3 — Adaptive UI/UX for phones, tablets and monitors
+
+- Device-safe layout using `env(safe-area-inset-*)` for iPhone camera cutouts and rounded screens, plus short-height/landscape media queries.
+- Expandable mission instructions, accessible stage-recovery action and collapsible mini-map keep the 3D viewport visible on narrow screens.
+- Larger mobile targets and separated hoist-turn buttons reduce interference between steering and throttle. Existing touch input remains unchanged.
+- In-game HELP dialog explains on-foot, ferry and travel-lift controls for keyboard and touch.
+- Always-reachable PAUSE / RESUME control in the header, including on phones and tablets.
+- Dynamic touch ACTION labels (BOARD, SECURE, ENTER, ATTACH) and correctly disabled RAISE / LOWER outside their active stages.
+- Preserves desktop dashboard while allowing browser zoom (removes `user-scalable=no`).
+- Safe pointer cleanup on blur, pause and joystick pointer-capture loss.
+- Adds `responsive-ui.css` as an override layer; no changes to 3D geometry, vehicle handling, mission rules or company branding.
+
+### Responsive acceptance checklist
+
+- [ ] Android portrait (360–430 CSS px) and landscape: no overlap between joystick, hoist-turn buttons, mission and touch actions.
+- [ ] iPhone portrait (375–430 CSS px) and landscape, including safe-area insets.
+- [ ] Small phone (320 CSS px): actions remain reachable and scrollable overlays fit.
+- [ ] Tablet portrait/landscape (768–1024 CSS px): visible controls and readable objective.
+- [ ] Desktop 1366–1920 CSS px: normal map, HUD, mission and help controls.
+- [ ] Open / close mission and map, Help (from start and pause), pause and resume.
+- [ ] Board ferry and hoist, steer, lift, recover, complete the mission; verify touch-action controls still work.
+- [ ] Real-browser WebGL, performance, keyboard focus, and iOS Safari touch behavior.
+
+This layout is a **responsive interface change**, not new lift physics. Automated Node tests check HTML/CSS/JS contracts; real-device visual gameplay checks remain required before merging.
 
 ## v0.3.2 — Hoist turning and mobile rotation
 

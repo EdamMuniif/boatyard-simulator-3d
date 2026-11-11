@@ -1,4 +1,4 @@
-# Architecture — Boatyard Simulator 3D v0.3.2
+# Architecture — Boatyard Simulator 3D v0.3.3
 
 ## Objective and boundaries
 
@@ -7,7 +7,7 @@ Create a small reproducible game built around the complete ferry-to-dry-dock loo
 ## Main subsystems
 
 ```text
-index.html / styles.css
+index.html / styles.css / responsive-ui.css
           │ user input + HUD
           ▼
   main.js (DockyardGame)
@@ -60,6 +60,15 @@ The single source of gameplay rule constants is `rules.js`; edit thresholds ther
 Three.js uses **Y-up**. `X` is horizontal across the shipyard; `Z` runs from the harbor toward inland. Ferry bow points +Z when piloted into the lifting basin. The initial ferry is at `(0, 0, -49)`, basin target `(0, 0, 16)`, and dry-dock target `(34, 0, 108)`. These are fictional world-units. They are **not** actual Thilafushi site coordinates.
 
 The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled cutout, each carrying one row of the travel lift's wheels in the basin scene. The vessel hull is carried and moved by an arcade transform synchronized to the hoist in the first iteration; no physical force transfer is computed.
+
+### v0.3.3 responsive UI
+
+- `responsive-ui.css` is loaded **after** the base `styles.css`; it owns adaptive media queries and safe-area touch spacing. Existing game styles remain available and unchanged.
+- `main.js` owns transient UI state only: mission instructions expanded/collapsed, map expanded/collapsed, help modal open/close, and pause-button representation. Compact defaults apply on phone-size or short-height viewports, with user interaction taking priority afterward.
+- HELP temporarily pauses the existing game loop and restores the previous pause state on close. All touch axes and held buttons are cleared on pause, blur and help open.
+- Existing DOM IDs for 3D controls and player input remain intact. RAISE/LOWER disabled states reflect mission phases; the ACTION label reflects the active stage.
+- Header PAUSE and HELP buttons are accessible on desktop and touchscreen. No new network calls or UI framework dependencies.
+- UI regression tests check action targets, CSS breakpoints, safe areas, user zoom and control compatibility. Pixel-perfect visual acceptance remains a manual real-device task.
 
 ### v0.3.2 turning controls
 

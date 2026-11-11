@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#071726" />
   <meta name="description" content="Boatyard Simulator 3D — pilot a ferry, drive a travel lift, and dry-dock your vessel." />
-  <title>Boatyard Simulator 3D | Prototype 0.3.2</title>
+  <title>Boatyard Simulator 3D | Prototype 0.3.3</title>
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./responsive-ui.css" />
   <script type="importmap">
   { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
   </script>
@@ -15,8 +16,12 @@
   <div id="game" aria-label="3D boatyard game viewport"></div>
   <div id="crosshair" aria-hidden="true">+</div>
   <header class="game-header">
-    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.3.2</small></div></div>
+    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.3.3</small></div></div>
     <div class="top-stats"><div><small>MISSION</small><b>01 / 01</b></div><div><small>COMPLETED</small><b id="score">00</b></div><div><small>SIM STATUS</small><b id="modeLabel">ON FOOT</b></div></div>
+    <nav class="hud-actions" aria-label="Game menu">
+      <button type="button" id="hudHelp" class="hud-icon-button" aria-label="Show game controls" title="Game controls">? HELP</button>
+      <button type="button" id="hudPause" class="hud-icon-button" aria-label="Pause game" title="Pause game" disabled>Ⅱ PAUSE</button>
+    </nav>
   </header>
   <section id="missionPanel" class="mission-panel" aria-live="polite">
     <div class="panel-eyebrow"><span class="pulse-dot"></span> ACTIVE CONTRACT <span class="panel-index">MISSION 01</span></div>
@@ -25,17 +30,20 @@
     <div class="mission-meter"><span id="missionMeter"></span></div>
     <div class="mission-status"><span id="phaseCount">01 / 08</span><span id="distanceLabel">—</span></div>
     <div id="hint" class="hint">WASD to walk • E to interact</div>
-    <button id="recoverButton" type="button" class="checkpoint-button" disabled title="Restore the start of this mission stage">↶ RECOVER STAGE (T)</button>
+    <div class="mission-actions">
+      <button id="recoverButton" type="button" class="checkpoint-button" disabled title="Restore the start of this mission stage">↶ RESET STAGE</button>
+      <button id="missionDetailsToggle" type="button" class="mission-toggle" aria-controls="hint" aria-expanded="true">LESS</button>
+    </div>
   </section>
   <div id="toast" role="status" aria-live="polite"></div>
   <div id="reticle-label">OBJECTIVE <span id="waypointName">HARBOR DISPATCH</span></div>
   <div class="bottom-hud">
-    <div class="map-wrap"><div class="map-heading"><span class="small-gold">●</span> YARD NAV <span id="mapZoom">N</span></div><canvas id="minimap" width="240" height="240" aria-label="Map of the shipyard"></canvas><div class="map-legend"><span class="map-self">●</span> YOU <span class="map-goal">◆</span> TARGET</div></div>
+    <div class="map-wrap"><div class="map-heading"><span class="small-gold">●</span> YARD NAV <span id="mapZoom">N</span><button id="mapToggle" type="button" class="map-toggle" aria-label="Collapse minimap" aria-controls="minimap" aria-expanded="true">− MAP</button></div><canvas id="minimap" width="240" height="240" aria-label="Map of the shipyard"></canvas><div class="map-legend"><span class="map-self">●</span> YOU <span class="map-goal">◆</span> TARGET</div></div>
     <div class="instrument"><div class="instrument-head"><span id="vehicleName">ON FOOT</span><span id="speedUnit">m/s</span></div><div class="speed-row"><span id="speed">0.0</span><div class="speed-side"><small>SPEED</small><span id="liftReading">HOIST READY</span></div></div><div class="instrument-foot" id="instrumentFoot">WASD MOVE · SHIFT SPRINT</div></div>
   </div>
   <div class="desktop-guide" id="desktopGuide">WASD / ARROWS <b>MOVE</b> &nbsp;·&nbsp; A/D <b>HOIST TURN</b> &nbsp;·&nbsp; E <b>ACTION</b> &nbsp;·&nbsp; R / F <b>LIFT</b> &nbsp;·&nbsp; C <b>CAMERA</b> &nbsp;·&nbsp; SPACE <b>JUMP / BRAKE</b> &nbsp;·&nbsp; P <b>PAUSE</b> &nbsp;·&nbsp; T <b>RECOVER</b></div>
   <div class="mobile-controls" aria-label="Touch game controls">
-    <div id="joystick" class="joystick"><div class="joystick-base"><div id="joystickThumb" class="joystick-thumb"></div></div><span>MOVE / STEER</span></div>
+    <div id="joystick" class="joystick" aria-label="Analog movement joystick"><div class="joystick-base"><div id="joystickThumb" class="joystick-thumb"></div></div><span>MOVE / STEER</span></div>
     <div id="hoistTurnControls" class="hoist-turn-controls" role="group" aria-label="Hoist rotation controls">
       <span>HOIST TURN</span>
       <div class="hoist-turn-buttons">
@@ -43,7 +51,7 @@
         <button id="touchTurnRight" type="button" aria-label="Rotate hoist right" title="Hold to rotate right">↷<small>RIGHT</small></button>
       </div>
     </div>
-    <div class="mobile-buttons"><button type="button" id="touchCamera" class="round-button secondary">CAM</button><button type="button" id="touchAction" class="round-button action">E<span>ACTION</span></button><button type="button" id="touchRaise" class="round-button small">▲<span>RAISE</span></button><button type="button" id="touchLower" class="round-button small">▼<span>LOWER</span></button><button type="button" id="touchBrake" class="round-button small brake">■<span>BRAKE</span></button></div>
+    <div class="mobile-buttons"><button type="button" id="touchCamera" class="round-button secondary" aria-label="Change camera">CAM</button><button type="button" id="touchAction" class="round-button action">E<span>ACTION</span></button><button type="button" id="touchRaise" class="round-button small">▲<span>RAISE</span></button><button type="button" id="touchLower" class="round-button small">▼<span>LOWER</span></button><button type="button" id="touchBrake" class="round-button small brake">■<span>BRAKE</span></button></div>
   </div>
   <div class="screen-overlay" id="startScreen">
     <div class="hero-card">
@@ -54,10 +62,23 @@
       <p>Bring a ferry in from the harbor. Take control of the 200T-inspired travel lift. Haul your vessel across the yard and complete its dry-docking mission.</p>
       <div class="hero-specs"><span>THIRD-PERSON WORLD</span><span>VESSEL PILOTING</span><span>TRAVEL LIFT</span></div>
       <button id="startButton" type="button" class="primary-button">START MISSION <span>→</span></button>
+      <button id="helpFromStart" type="button" class="plain-button">HOW TO PLAY ?</button>
       <small class="disclaimer">Fictionalized equipment physics. This game is not an operator-training or lifting-planning tool.</small>
     </div>
   </div>
-  <div class="screen-overlay hidden" id="pauseScreen"><div class="dialog"><h2>PAUSED</h2><p>Your shipyard mission is paused.</p><button id="resumeButton" class="primary-button">RESUME</button><button id="recoverFromPause" class="plain-button">RECOVER CURRENT STAGE</button><button id="restartFromPause" class="plain-button">RESTART MISSION</button></div></div>
+  <div class="screen-overlay hidden" id="helpScreen" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="dialog help-dialog">
+      <h2 id="helpTitle">GAME CONTROLS</h2>
+      <p>Complete the ferry dry-docking mission. On phones, use the left joystick and the large action buttons. Drag empty space to rotate the camera.</p>
+      <div class="help-sections">
+        <section class="help-section"><h3>ON FOOT</h3><p><b>Desktop:</b> WASD walk · Shift sprint · Space jump · E interact.<br><b>Touch:</b> Joystick move · JUMP · ACTION.</p></section>
+        <section class="help-section"><h3>FERRY</h3><p><b>Desktop:</b> W/S throttle · A/D steer · Space brake.<br><b>Touch:</b> Joystick pilot · BRAKE · ACTION when aligned.</p></section>
+        <section class="help-section"><h3>BOAT HOIST</h3><p><b>Desktop:</b> W/S drive · A/D rotate · Space brake · R raise · F lower.<br><b>Touch:</b> Joystick drive · ↶/↷ turn · BRAKE · RAISE / LOWER.</p></section>
+      </div>
+      <button type="button" id="closeHelp" class="primary-button">BACK TO GAME</button>
+    </div>
+  </div>
+  <div class="screen-overlay hidden" id="pauseScreen"><div class="dialog"><h2>PAUSED</h2><p>Your shipyard mission is paused.</p><button id="resumeButton" class="primary-button">RESUME</button><button id="helpFromPause" type="button" class="plain-button">CONTROLS / HELP</button><button id="recoverFromPause" class="plain-button">RECOVER CURRENT STAGE</button><button id="restartFromPause" class="plain-button">RESTART MISSION</button></div></div>
   <div class="screen-overlay hidden" id="completeScreen"><div class="dialog complete-dialog"><div class="mission-success">CONTRACT COMPLETE</div><h2>VESSEL<br />DRY-DOCKED</h2><p>Ferry delivered to the assigned docking bay.</p><div class="finish-score"><span>REWARD</span><strong>+1,500 XP</strong></div><button id="restartButton" class="primary-button">PLAY AGAIN <span>↻</span></button></div></div>
   <div id="fatalError" class="fatal-error hidden" role="alert"><p id="fatalMessage"></p><button id="fatalReload" class="primary-button" type="button">RELOAD GAME</button></div>
   <script type="module" src="./main.js"></script>
