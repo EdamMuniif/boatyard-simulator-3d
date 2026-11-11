@@ -1,4 +1,4 @@
-# Architecture — Boatyard Simulator 3D v0.2
+# Architecture — Boatyard Simulator 3D v0.3
 
 ## Objective and boundaries
 
@@ -56,6 +56,15 @@ The single source of gameplay rule constants is `rules.js`; edit thresholds ther
 Three.js uses **Y-up**. `X` is horizontal across the shipyard; `Z` runs from the harbor toward inland. Ferry bow points +Z when piloted into the lifting basin. The initial ferry is at `(0, 0, -49)`, basin target `(0, 0, 16)`, and dry-dock target `(34, 0, 108)`. These are fictional world-units. They are **not** actual Thilafushi site coordinates.
 
 The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled cutout, each carrying one row of the travel lift's wheels in the basin scene. The vessel hull is carried and moved by an arcade transform synchronized to the hoist in the first iteration; no physical force transfer is computed.
+
+### v0.3 rendering/animation separation
+
+- `rigging-profile.js` owns deterministic, tested U-shaped webbing and simplified lift-block heights. `geometry.js` consumes its curves and updates persistent BufferGeometry, avoiding per-frame geometry allocation.
+- In-game sling geometry resembles the supplied photographs: four transverse loops, tan/dark fabric, overhead wire falls, suspended blue lifting-block pairs and open unloaded cradle shape.
+- `createFerry()` returns both stable `root` and child `visual` groups. Only `visual` receives cosmetic sway; the mission, ferry position, docking logic and collision footprint keep using the stable root.
+- `main.js` retains existing input, collision, controls, and recovery, with adjusted chase/overhead camera offsets and a mobile pixel ratio cap.
+- `world.js` adds facade/ground/sea details while keeping buildings inside shared obstacle footprints. Mobile gets reduced shadow-map resolution.
+- No real-world company branding or certified mechanical information is included. Sling curves and movement are aesthetic, not load-bearing calculations.
 
 ### Rendering and assets
 

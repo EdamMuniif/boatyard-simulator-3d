@@ -34,6 +34,14 @@ function workshop(scene,x,z,w,d,h,name){
   const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
   box(g,w,h,d,0,h/2,0,wall);
   box(g,w+1,.46,d+1,0,h+.1,0,roofMat);
+  // Corrugated wall ribs and roof lights stay within workshop collider bounds.
+  for(let x=-w/2+1;x<w/2;x+=2.1){
+    box(g,.10,h*.72,.12,x,h*.51,d/2+.06,PALETTE.steel,false);
+  }
+  for(const x of [-w*.23,w*.23]){
+    box(g,w*.18,.045,d*.11,x,h+.35,-d*.17,PALETTE.glass,false);
+    box(g,w*.18,.045,d*.11,x,h+.35,d*.17,PALETTE.glass,false);
+  }
   for(let j=-1;j<=1;j++){
     const garage=box(g,w/4.8,h*.6,.11,j*(w/3.3),h*.33,-d/2-.08,PALETTE.dark,false);
     for(let k=0;k<5;k++)box(g,w/5.1,.045,.13,garage.position.x,.9+k*.65,-d/2-.17,PALETTE.steel,false);
@@ -97,10 +105,11 @@ function beacon(scene,x,z){
   lamp.castShadow=false;
 }
 export function createWorld(){
-  const scene=new THREE.Scene();scene.background=new THREE.Color('#b1cad2');scene.fog=new THREE.FogExp2('#a7bfc8',.0037);
+  const scene=new THREE.Scene();scene.background=new THREE.Color('#b8cbd4');scene.fog=new THREE.FogExp2('#aabfc9',.0035);
   const hemi=new THREE.HemisphereLight('#cdeaff','#74818b',2.4);scene.add(hemi);
-  const sun=new THREE.DirectionalLight('#fff0db',3.3);sun.position.set(-65,105,-30);sun.castShadow=true;
-  sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-150;sun.shadow.camera.right=150;
+  const sun=new THREE.DirectionalLight('#fff0db',2.85);sun.position.set(-65,105,-30);sun.castShadow=true;
+  const isTouch=window.matchMedia?.('(pointer: coarse)').matches??false;
+  sun.shadow.mapSize.set(isTouch?1024:2048,isTouch?1024:2048);sun.shadow.camera.left=-150;sun.shadow.camera.right=150;
   sun.shadow.camera.top=175;sun.shadow.camera.bottom=-175;sun.shadow.camera.near=1;sun.shadow.camera.far=300;sun.shadow.bias=-.0004;
   scene.add(sun);
   const water=new THREE.Mesh(new THREE.PlaneGeometry(630,600,1,1),new THREE.ShaderMaterial({uniforms:{uTime:{value:0}},vertexShader:`
@@ -113,8 +122,9 @@ export function createWorld(){
       float w=sin(p.x*1.3+p.y*.45+uTime*.9)*sin(p.y*1.5-p.x*.3-uTime*.65);
       float m=sin(p.x*.24+p.y*.19+uTime*.32);
       float glitter=pow(max(0.,sin(p.x*2.7+p.y*.98+uTime*1.2)*sin(p.y*2.6-uTime)),15.);
+      float foam=max(0.,sin(p.x*.72+p.y*.31+uTime*.66))*.045;
       vec3 deep=vec3(.035,.23,.30);vec3 cyan=vec3(.085,.38,.43);
-      vec3 c=mix(deep,cyan,.48+.20*w+.10*m);c+=vec3(.09,.15,.14)*glitter;
+      vec3 c=mix(deep,cyan,.48+.20*w+.10*m);c+=vec3(.09,.15,.14)*glitter+vec3(.02,.06,.065)*foam;
       gl_FragColor=vec4(c,1.);
     }
   `,side:THREE.DoubleSide}));water.rotation.x=-Math.PI/2;water.position.set(0,-.38,-110);scene.add(water);
@@ -128,6 +138,12 @@ export function createWorld(){
     box(scene,.25,.08,43,x,.1,10.5,PALETTE.golden,false);
   }
   box(scene,20,1.5,.7,0,-.5,32.6,wall);
+  // Low-profile stains and inspection markings; non-collidable decoration.
+  const stain=new THREE.MeshBasicMaterial({color:'#536871',transparent:true,opacity:.19,depthWrite:false});
+  for(const [x,z,w,d] of [[-29,86,6,2],[31,70,4,2],[-19,135,8,2.4],[44,118,5,2]]){
+    const mark=new THREE.Mesh(new THREE.PlaneGeometry(w,d),stain);
+    mark.rotation.x=-Math.PI/2;mark.position.set(x,.045,z);scene.add(mark);
+  }
   // Subtle painted traffic routes along the paved yard.
   for(let z=37;z<152;z+=9){
     box(scene,.15,.018,4,0,.027,z,yellowLine,false);
@@ -142,6 +158,11 @@ export function createWorld(){
   for(const o of FORKLIFTS)forklift(scene,o.x,o.z,o.heading);
   worker(scene,-30,60);worker(scene,49,103);worker(scene,-21,119,'#f3d756');worker(scene,28,79);
   pierBollards(scene);
+  // Rubber fenders and guide stripes visually define the lifting basin.
+  for(const z of [-5,4,13,22])for(const x of [-10.8,10.8]){
+    const fender=cylinder(scene,.27,.27,1.65,x,.1,z,PALETTE.rubber,10);
+    fender.rotation.x=Math.PI/2;
+  }
   beacon(scene,-8,5);beacon(scene,8,5);
   // Yard prop piles, containers, barriers, and a crane silhouette.
   for(const x of [-63,-58,-53])for(const z of [23,29])box(scene,2.4,1.55,3.2,x,.8,z,rust);

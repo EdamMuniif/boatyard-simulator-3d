@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {SLING_STATIONS,SLING_SEGMENTS,SLING_HALF_SPAN,SLING_WEB_WIDTH,rigPose,slingPoint} from './rigging-profile.js';
 
 const mat = (color, roughness = 0.78, metalness = 0.05) => new THREE.MeshStandardMaterial({color, roughness, metalness});
 export const PALETTE = {
@@ -55,16 +56,24 @@ export function createHoist() {
     box(root,1.85,16.9,2.0,x,10,z,PALETTE.hoist);
     box(root,3.3,1.7,4.1,x,2.7,z,PALETTE.hoistDark);
     box(root,2.5,.7,3.3,x,17.7,z,PALETTE.hoistBright);
+    for(const yy of [3.5,4.6,5.7])box(root,2.0,.10,2.15,x,yy,z,PALETTE.hoistDark,false);
+    cylinder(root,1.2,1.2,.25,x,3.8,z,PALETTE.steel,20);
     // Four independent wheel stations, two tires per station.
   }
   for(const x of [-W,W]) {
     box(root,1.7,1.7,31.5,x,18.4,0,PALETTE.hoist);
     box(root,1.1,.52,29,x,19.7,0,PALETTE.steel);
+    box(root,.095,.10,31.2,x,20.73,0,PALETTE.steel,false);
+    for(const z of [-13,-7,0,7,13])box(root,.10,.85,.10,x,20.27,z,PALETTE.steel,false);
     for(const z of [-9.5,9.5]) {
       const drum=cylinder(root,1,1,3.0,x,5.5,z,PALETTE.steel,18);
       drum.rotation.x=Math.PI/2;
       const sleeve=cylinder(root,1.1,1.1,.22,x,5.5,z,PALETTE.hoistBright,16);
       sleeve.rotation.x=Math.PI/2;
+      for(const dz of [-1.25,1.25]){
+        const flange=cylinder(root,1.28,1.28,.14,x,5.5,z+dz,PALETTE.hoistBright,18);
+        flange.rotation.x=Math.PI/2;
+      }
     }
   }
   for(const z of [-L,L]) {
@@ -92,33 +101,70 @@ export function createHoist() {
     }
     root.add(pivot); wheels.push(pivot);
   }
-  // Block clusters, vertical wire ropes and adjustable textile lifting slings.
+  // Four reference-inspired U-shaped webbing cradles with animated lifting
+  // blocks and wire-falls. Purely visual: no certified sling physics.
+  const webColors=['#8e7156','#54453b','#96795c','#625041'];
   const rigs=[];
-  for(const z of [-8.2,8.2]) {
-    for(const x of [-6,6]) {
-      box(root,.9,.65,1.4,x,15.8,z,PALETTE.hoistBright);
-      box(root,.5,.95,.75,x,14.8,z,PALETTE.steel);
+  for(let station=0;station<SLING_STATIONS.length;station++){
+    const z=SLING_STATIONS[station];
+    const data=new Float32Array((SLING_SEGMENTS+1)*6);
+    const indices=[];
+    for(let j=0;j<SLING_SEGMENTS;j++){
+      const k=j*2;indices.push(k,k+1,k+2,k+1,k+3,k+2);
     }
-    const slingBottom=box(root,10,.16,.56,0,.4,z,PALETTE.rope,false);
-    const legs=[];
-    for(const x of [-5.05,5.05])legs.push(box(root,.2,8.0,.5,x,7.4,z,PALETTE.rope,false));
-    const ropes=[];
-    for(const x of [-6.0,6.0]) {
-      const wirePath=new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(x,17.9,z),new THREE.Vector3(x,14.7,z),new THREE.Vector3(x*.84,13.9,z)
-      ]);
-      const line=new THREE.Line(wirePath,new THREE.LineBasicMaterial({color:'#526470'}));
-      root.add(line);ropes.push({line,x});
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.BufferAttribute(data,3));
+    geometry.setIndex(indices);
+    const web=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({
+      color:webColors[station],roughness:.96,side:THREE.DoubleSide
+    }));
+    web.name='Suspended fabric sling '+(station+1);
+    web.castShadow=false;web.receiveShadow=true;web.frustumCulled=false;
+    root.add(web);
+    const blocks=[],wires=[];
+    for(const side of [-1,1]){
+      const x=side*SLING_HALF_SPAN;
+      const block=new THREE.Group();block.position.set(x,rigPose(0,false).blockY,z);
+      box(block,1.75,.48,1.12,0,0,0,PALETTE.hoistBright);
+      box(block,1.25,.60,1.05,0,.45,0,PALETTE.hoistDark);
+      box(block,.44,.6,.42,0,-.47,0,PALETTE.steel);
+      for(const dx of [-.48,.48]){
+        const sheave=cylinder(block,.24,.24,.16,dx,.42,0,PALETTE.steel,12);
+        sheave.rotation.x=Math.PI/2;
+      }
+      root.add(block);blocks.push(block);
+      box(root,.85,.32,.9,side*11.8,18.7,z,PALETTE.hoistDark);
+      for(const dz of [-.27,.27]){
+        const points=new Float32Array([side*11.8,19.12,z+dz,x,13.1,z+dz]);
+        const wireGeom=new THREE.BufferGeometry();
+        wireGeom.setAttribute('position',new THREE.BufferAttribute(points,3));
+        const wire=new THREE.Line(wireGeom,new THREE.LineBasicMaterial({color:'#455664'}));
+        wire.frustumCulled=false;root.add(wire);
+        wires.push({wire,points,x,dz});
+      }
     }
-    rigs.push({slingBottom,legs,ropes,z});
+    rigs.push({z,data,geometry,blocks,wires});
   }
-  function setRigging(height,visible) {
-    for(const rig of rigs) {
-      const bottomY=height-1.0;
-      rig.slingBottom.position.y=bottomY;
-      rig.slingBottom.visible=visible;
-      rig.legs.forEach(leg=>{const top=14.35; const length=Math.max(.3,top-bottomY);leg.scale.y=length/8;leg.position.y=(top+bottomY)/2;leg.visible=visible;});
-      rig.ropes.forEach(({line})=>{line.visible=true;});
+  let lastLift=NaN,lastAttached=null;
+  function setRigging(height,attached){
+    if(height===lastLift&&attached===lastAttached)return;
+    lastLift=height;lastAttached=attached;
+    const pose=rigPose(height,attached);
+    for(const rig of rigs){
+      for(let j=0;j<=SLING_SEGMENTS;j++){
+        const point=slingPoint(j/SLING_SEGMENTS,pose),i=j*6;
+        rig.data[i]=point.x;rig.data[i+1]=point.y;rig.data[i+2]=rig.z-SLING_WEB_WIDTH/2;
+        rig.data[i+3]=point.x;rig.data[i+4]=point.y;rig.data[i+5]=rig.z+SLING_WEB_WIDTH/2;
+      }
+      rig.geometry.attributes.position.needsUpdate=true;
+      rig.geometry.computeVertexNormals();
+      for(const block of rig.blocks)block.position.y=pose.blockY;
+      for(const cable of rig.wires){
+        cable.points[3]=cable.x;
+        cable.points[4]=pose.blockY+.45;
+        cable.points[5]=rig.z+cable.dz;
+        cable.wire.geometry.attributes.position.needsUpdate=true;
+      }
     }
   }
   setRigging(0,false);
@@ -145,7 +191,7 @@ function shapeHull(parent){
   add(deck,new THREE.MeshStandardMaterial({color:'#e7e8e3',roughness:.82,side:THREE.DoubleSide}));
 }
 export function createFerry(){
-  const root=new THREE.Group();root.name='Ferry RTL-style vessel';
+  const root=new THREE.Group();root.name='Passenger ferry';
   shapeHull(root);
   // Passenger saloon, bridge, side windows, roof and ferry livery.
   box(root,6.45,2.9,14.2,0,2.23,-.9,PALETTE.ivory);
@@ -166,11 +212,24 @@ export function createFerry(){
     railing.rotation.y=0;
   }
   cylinder(root,.12,.15,1.0,0,4.4,3,PALETTE.steel,10);
-  panelLabel(root,'RTL 121',3.6,.85,[0,2.7,-8.03],Math.PI,76);
+  panelLabel(root,'FERRY 01',3.6,.85,[0,2.7,-8.03],Math.PI,66);
   for(const x of [-3.25,3.25])for(const z of [-5.2,5.8]){
     const fender=cylinder(root,.27,.27,1.8,x,1.48,z,PALETTE.dark,10);fender.rotation.x=Math.PI/2;
   }
-  return {root};
+  for(const x of [-3.32,3.32]){
+    for(let z=-6.6;z<=4.2;z+=2.5)box(root,.1,1.18,.065,x,2.65,z+.85,PALETTE.steel,false);
+    for(const z of [-8.1,7.6])box(root,.28,.19,.62,x*.85,1.08,z,PALETTE.steel,false);
+  }
+  for(const z of [-5,-1,3]){
+    box(root,1.1,.19,.9,0,4.09,z,PALETTE.steel,false);
+    box(root,.85,.13,.65,0,4.26,z,PALETTE.dark,false);
+  }
+  // Visual sway is a child-only effect; navigation and collider coordinates
+  // continue to live on the unmodified root group.
+  const visual=new THREE.Group();visual.name='Ferry visual shell';
+  while(root.children.length)visual.add(root.children[0]);
+  root.add(visual);
+  return {root,visual};
 }
 
 export function createPlayer(){

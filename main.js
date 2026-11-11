@@ -14,7 +14,8 @@ let game;
 class DockyardGame {
   constructor(){
     this.renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.65));
+    this.maxPixelRatio=window.matchMedia?.('(pointer: coarse)').matches?1.3:1.65;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,this.maxPixelRatio));
     this.renderer.setSize(window.innerWidth,window.innerHeight);
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
@@ -35,6 +36,7 @@ class DockyardGame {
     this.camera.position.set(-25,13,15);
     this.phase=0;this.mode='walk';this.started=false;this.paused=false;this.cameraMode=0;
     this.ferrySpeed=0;this.ferryHeading=0;this.hoistSpeed=0;this.hoistHeading=0;
+    this.lastHoistSpeed=0;
     this.liftHeight=0;this.attached=false;
     this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false};
     this.orbitYaw=.0;this.orbitPitch=0;this.frameTime=performance.now();this.uiTime=0;this.toastDeadline=0;
@@ -165,7 +167,8 @@ class DockyardGame {
     this.ferryHeading=state.ferryHeading;this.hoistHeading=state.hoistHeading;
     this.ferry.root.rotation.y=state.ferryHeading;
     this.hoist.root.rotation.y=state.hoistHeading;
-    this.ferrySpeed=0;this.hoistSpeed=0;
+    this.ferrySpeed=0;this.hoistSpeed=0;this.lastHoistSpeed=0;
+    if(this.ferry.visual)this.ferry.visual.rotation.set(0,0,0);
     this.liftHeight=state.liftHeight;this.attached=state.attached;
     this.hoist.setRigging(this.liftHeight,this.attached);
     this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false};
@@ -241,6 +244,16 @@ class DockyardGame {
       this.ferry.root.rotation.y=this.hoistHeading;
       this.hoist.setRigging(this.liftHeight,true);
     }
+    // Child-only aesthetic sway: mission positions and collision remain exact.
+    // The values are visual game effects, not a suspended-load dynamics model.
+    if(this.ferry.visual){
+      const acceleration=this.hoistSpeed-this.lastHoistSpeed;
+      const roll=this.attached?clamp(-this.hoistSpeed*.004-hor*.015,-.035,.035):0;
+      const pitch=this.attached?clamp(-acceleration*.045,-.035,.035):0;
+      this.ferry.visual.rotation.z=damp(this.ferry.visual.rotation.z,roll,2.2,dt);
+      this.ferry.visual.rotation.x=damp(this.ferry.visual.rotation.x,pitch,2.2,dt);
+    }
+    this.lastHoistSpeed=this.hoistSpeed;
     if(stage==='LIFT'&&this.liftHeight>=MISSION.liftRequired){
       this.setPhase('HAUL');this.notify('VESSEL CLEAR // Drive to Dry Dock Bay 03.',2900);
     }
@@ -276,11 +289,17 @@ class DockyardGame {
     const heading=this.mode==='ferry'?this.ferryHeading:this.mode==='hoist'?this.hoistHeading:this.avatar.rotation.y;
     let look=focus.clone().add(new THREE.Vector3(0,this.mode==='hoist'?9:this.mode==='ferry'?2.2:1.4,0));
     let offset;
-    if(this.cameraMode===1){offset=new THREE.Vector3(0,82,24);look=focus.clone().add(new THREE.Vector3(0,0,0));}
-    else if(this.cameraMode===2){offset=new THREE.Vector3(this.mode==='hoist'?43:21,this.mode==='hoist'?17:9,12);offset.applyAxisAngle(tmpY,heading+this.orbitYaw);}
+    if(this.cameraMode===1){
+      offset=new THREE.Vector3(0,80,28);
+      look=focus.clone();
+    }
+    else if(this.cameraMode===2){
+      offset=new THREE.Vector3(this.mode==='hoist'?45:21,this.mode==='hoist'?22:9,10);
+      offset.applyAxisAngle(tmpY,heading+this.orbitYaw);
+    }
     else{
       const dist=this.cameraDistance||1;
-      const base=this.mode==='hoist'?new THREE.Vector3(-20,22,-44):this.mode==='ferry'?new THREE.Vector3(-11,12,-22):new THREE.Vector3(-7,5.8,-11);
+      const base=this.mode==='hoist'?new THREE.Vector3(-17,25,-46):this.mode==='ferry'?new THREE.Vector3(-10,12.5,-23):new THREE.Vector3(-7,6.2,-11);
       base.multiplyScalar(dist);base.y+=this.orbitPitch*15;offset=base.applyAxisAngle(tmpY,heading+this.orbitYaw);
     }
     const desired=focus.add(offset);
@@ -335,7 +354,7 @@ class DockyardGame {
     dot(t,'#ffd084',5.3);dot(pos,'#ffffff',4.4);
     ctx.fillStyle='#ecfaff';ctx.font='bold 12px Arial';ctx.fillText('N',W-17,16);
   }
-  onResize(){this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.65));this.renderer.setSize(innerWidth,innerHeight);}
+  onResize(){this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,this.maxPixelRatio));this.renderer.setSize(innerWidth,innerHeight);}
   animate(now){
     const dt=clamp((now-this.frameTime)/1000,0,.05);this.frameTime=now;
     try{this.update(dt);this.renderer.render(this.scene,this.camera);}

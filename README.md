@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.2
+# Boatyard Simulator 3D — Prototype v0.3
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -60,14 +60,31 @@ boatyard-simulator-3d/
 ├─ geometry.js         # Procedural vehicles, player and markers
 ├─ rules.js            # Mission stages and checkpoints
 ├─ collision.js        # Shared colliders and swept collision tests
+├─ rigging-profile.js  # Visual U-sling curve and lifting-block profiles
 ├─ rules.test.mjs      # Existing mission-rule tests
 ├─ collision.test.mjs  # Terrain, obstacle and sweep tests
 ├─ recovery.test.mjs   # Checkpoint validity tests
+├─ rigging-profile.test.mjs  # Visual rigging pose/curve tests
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
 
-## MVP stabilization in v0.2 (review branch)
+## v0.3 — Visual and handling improvements
+
+- The original simplified straight sling bars are replaced by **four hanging U-shaped fabric slings**, matching the broad arrangements visible in the supplied photos.
+- Unloaded straps hang near the pavement; when a vessel is attached, fabric loops, moving blue lifting blocks and paired cable falls rise with the existing game lift height.
+- Four-leg blue travel lift gains column base ribs, steering turntable details, gantry guardrails, drum flanges and additional hardware details. No real company names or logos.
+- Ferry has extra window frames, roof vents and deck details; the interactive label is **FERRY 01**.
+- Small **visual-only** roll/pitch animations animate the ferry when carried, leaving its existing gameplay transform, checkpoints, and collision footprint untouched.
+- Workshop facade ribs, roof skylights, basin fenders, yard stains and sea lighting are enhanced.
+- Lower WebGL pixel ratio and shadow texture size on coarse-pointer devices reduce GPU demand on typical mobile devices.
+- Three existing camera modes remain; hoist chase, tactical and side offsets are refined.
+
+**Important:** The source photographs are visual references, not surveyed dimensions. The hoist, slings, wheel spacing, wire paths, capacity and clearances are still **approximate game geometry**, not a mechanical replica or an operator training tool.
+
+**Release gate:** Before merging, verify game startup, all eight mission phases, sling positions empty and loaded, Bay 03 transport, camera behavior, collisions, recovery and touch controls on real devices. Node tests cannot substitute for WebGL visual confirmation.
+
+## MVP stabilization in v0.2 (included)
 
 - Characters are blocked by waterfront edges, major buildings, cargo stacks, forklifts and basin walls, with axis-wise sliding.
 - Ferry movement uses a swept yawed hull footprint to avoid passing through quays or the basin end wall.
