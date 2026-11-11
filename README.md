@@ -1,6 +1,6 @@
 # Boatyard Simulator 3D — Prototype v0.2
 
-A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of an MTCC EDEN TECHNOLOGY MAX 200T marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
+A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
 **Scope:** Game only. Vehicle dynamics, lifting behavior, clearances and vessel placement are **fictionalized**. It is not an operator-training program, machinery model, lift plan, or safety assessment.
 
@@ -95,4 +95,4 @@ Run `npm run check` and `npm test` from the repository root. The Node suite cove
 
 ## License and branding
 
-This is an original demonstration prototype built from new procedural meshes. The name and visual branding on the virtual hoist are for reference/prototyping; secure appropriate permissions before distributing a branded commercial game. The source ZIP does **not** include the uploaded original photographs or videos.
+This is an original demonstration prototype built from new procedural meshes. The hoist now uses neutral in-game labeling and contains no real company decals; obtain permission before adding any third-party branding in future releases. The source ZIP does **not** include the uploaded original photographs or videos.

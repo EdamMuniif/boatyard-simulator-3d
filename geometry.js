@@ -48,7 +48,7 @@ function panelLabel(parent, text, width, height, pos, direction=0, fontSize=60) 
 }
 
 export function createHoist() {
-  const root=new THREE.Group(); root.name='MTCC 200T inspired travel lift';
+  const root=new THREE.Group(); root.name='Boat Hoist - Travel Lift';
   const W=12.4,L=14.3;
   // Welded portal frame, four columns, longitudinal beams, and cross beam signage.
   for(const x of [-W,W])for(const z of [-L,L]) {
@@ -70,7 +70,7 @@ export function createHoist() {
   for(const z of [-L,L]) {
     box(root,26.3,2.2,2.1,0,19,z,PALETTE.hoist);
     box(root,26.0,.18,.14,0,20.2,z,PALETTE.steel);
-    panelLabel(root,'MAX 200T    MTCC    EDENTECHNOLOGY',22.7,1.25,[0,19.02,z + Math.sign(z)*1.08],z>0?0:Math.PI,43);
+    panelLabel(root,'BOATYARD SIMULATOR',22.7,1.25,[0,19.02,z + Math.sign(z)*1.08],z>0?0:Math.PI,43);
   }
   // Side-mounted industrial systems and machinery cabinets.
   for(const x of [-W,W]) {
