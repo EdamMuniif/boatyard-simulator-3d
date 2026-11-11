@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#071726" />
   <meta name="description" content="Boatyard Simulator 3D — pilot a ferry, drive a travel lift, and dry-dock your vessel." />
-  <title>Boatyard Simulator 3D | Prototype 0.3</title>
+  <title>Boatyard Simulator 3D | Prototype 0.3.1</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
@@ -15,7 +15,7 @@
   <div id="game" aria-label="3D boatyard game viewport"></div>
   <div id="crosshair" aria-hidden="true">+</div>
   <header class="game-header">
-    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.3</small></div></div>
+    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.3.1</small></div></div>
     <div class="top-stats"><div><small>MISSION</small><b>01 / 01</b></div><div><small>COMPLETED</small><b id="score">00</b></div><div><small>SIM STATUS</small><b id="modeLabel">ON FOOT</b></div></div>
   </header>
   <section id="missionPanel" class="mission-panel" aria-live="polite">
@@ -33,7 +33,7 @@
     <div class="map-wrap"><div class="map-heading"><span class="small-gold">●</span> YARD NAV <span id="mapZoom">N</span></div><canvas id="minimap" width="240" height="240" aria-label="Map of the shipyard"></canvas><div class="map-legend"><span class="map-self">●</span> YOU <span class="map-goal">◆</span> TARGET</div></div>
     <div class="instrument"><div class="instrument-head"><span id="vehicleName">ON FOOT</span><span id="speedUnit">m/s</span></div><div class="speed-row"><span id="speed">0.0</span><div class="speed-side"><small>SPEED</small><span id="liftReading">HOIST READY</span></div></div><div class="instrument-foot" id="instrumentFoot">WASD MOVE · SHIFT SPRINT</div></div>
   </div>
-  <div class="desktop-guide" id="desktopGuide">WASD / ARROWS <b>MOVE</b> &nbsp;·&nbsp; E <b>ACTION</b> &nbsp;·&nbsp; R / F <b>LIFT</b> &nbsp;·&nbsp; C <b>CAMERA</b> &nbsp;·&nbsp; SPACE <b>BRAKE</b> &nbsp;·&nbsp; P <b>PAUSE</b> &nbsp;·&nbsp; T <b>RECOVER</b></div>
+  <div class="desktop-guide" id="desktopGuide">WASD / ARROWS <b>MOVE</b> &nbsp;·&nbsp; E <b>ACTION</b> &nbsp;·&nbsp; R / F <b>LIFT</b> &nbsp;·&nbsp; C <b>CAMERA</b> &nbsp;·&nbsp; SPACE <b>JUMP / BRAKE</b> &nbsp;·&nbsp; P <b>PAUSE</b> &nbsp;·&nbsp; T <b>RECOVER</b></div>
   <div class="mobile-controls" aria-label="Touch game controls">
     <div id="joystick" class="joystick"><div class="joystick-base"><div id="joystickThumb" class="joystick-thumb"></div></div><span>MOVE / STEER</span></div>
     <div class="mobile-buttons"><button type="button" id="touchCamera" class="round-button secondary">CAM</button><button type="button" id="touchAction" class="round-button action">E<span>ACTION</span></button><button type="button" id="touchRaise" class="round-button small">▲<span>RAISE</span></button><button type="button" id="touchLower" class="round-button small">▼<span>LOWER</span></button><button type="button" id="touchBrake" class="round-button small brake">■<span>BRAKE</span></button></div>

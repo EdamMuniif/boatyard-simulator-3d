@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {createWorld} from './world.js';
-import {createHoist,createFerry,createPlayer,createWaypoint} from './geometry.js';
+import {createHoist,createFerry,createPlayer,animatePlayer,createWaypoint} from './geometry.js';
+import {createCharacterMotion,resetCharacterMotion,stepCharacterMotion} from './character-motion.js';
 import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock,checkpointForPhase} from './rules.js';
 import {canWalkAt,canFerryAt,canHoistAt,sweepVehicle} from './collision.js';
 
@@ -31,6 +32,7 @@ class DockyardGame {
     this.world=createWorld();
     this.scene=this.world.scene;
     this.avatar=createPlayer();this.avatar.position.set(-18,0,37);this.scene.add(this.avatar);
+    this.character=createCharacterMotion(this.avatar.position);
     this.ferry=createFerry();this.ferry.root.position.set(0,0,-49);this.scene.add(this.ferry.root);
     this.hoist=createHoist();this.hoist.root.position.set(0,0,63);this.scene.add(this.hoist.root);
     this.camera.position.set(-25,13,15);
@@ -137,6 +139,8 @@ class DockyardGame {
     }else if(stage==='SAIL'){
       if(canBerthFerry(this.ferry.root.position,this.ferrySpeed)){
         this.ferrySpeed=0;this.mode='walk';this.avatar.position.set(-16.5,0,52);
+        resetCharacterMotion(this.character,this.avatar.position,this.avatar.rotation.y);
+        animatePlayer(this.avatar,this.character);
         this.setPhase('BOARD_HOIST');this.notify('FERRY SECURED // Proceed to the travel lift.',2600);
       }else this.notify('Position the ferry inside the basin and bring it to a stop.');
     }else if(stage==='BOARD_HOIST'){
@@ -162,6 +166,9 @@ class DockyardGame {
     if(!state)return;
     this.mode=state.mode;
     this.avatar.position.set(state.avatar.x,state.avatar.y,state.avatar.z);
+    resetCharacterMotion(this.character,this.avatar.position,0);
+    this.avatar.rotation.y=this.character.heading;
+    animatePlayer(this.avatar,this.character);
     this.ferry.root.position.set(state.ferry.x,state.ferry.y,state.ferry.z);
     this.hoist.root.position.set(state.hoist.x,state.hoist.y,state.hoist.z);
     this.ferryHeading=state.ferryHeading;this.hoistHeading=state.hoistHeading;
@@ -186,15 +193,21 @@ class DockyardGame {
     return {hor:clamp(hor,-1,1),ver:clamp(ver,-1,1)};
   }
   advanceWalk(dt){
-    const {hor,ver}=this.axes();if(!hor&&!ver)return;
-    const speed=(this.keys.ShiftLeft||this.keys.ShiftRight)?7.0:4.7;
-    let dx=hor,dz=ver;const len=Math.hypot(dx,dz);dx/=len;dz/=len;
-    const p=this.avatar.position;
-    // Resolve one axis at a time so the player slides along buildings and quay edges.
-    const nx=p.x+dx*speed*dt,nz=p.z+dz*speed*dt;
-    if(canWalkAt({x:nx,z:p.z}))p.x=nx;
-    if(canWalkAt({x:p.x,z:nz}))p.z=nz;
-    this.avatar.rotation.y=Math.atan2(dx,dz);
+    const {hor,ver}=this.axes();
+    const touchMagnitude=Math.hypot(this.touch.x,this.touch.y);
+    const keyboardSprinting=!!(this.keys.ShiftLeft||this.keys.ShiftRight);
+    const cameraYaw=this.cameraMode===1?Math.PI:
+      this.cameraMode===2?Math.atan2(-21,-10)+this.orbitYaw:
+      Math.atan2(7,11)+this.orbitYaw;
+    stepCharacterMotion(this.character,{
+      hor,ver,cameraYaw,
+      sprint:keyboardSprinting||touchMagnitude>.92,
+      jump:!!(this.keys.Space||this.touch.brake)
+    },dt,canWalkAt);
+    const p=this.character;
+    this.avatar.position.set(p.x,p.y,p.z);
+    this.avatar.rotation.y=p.heading;
+    animatePlayer(this.avatar,p);
   }
   advanceFerry(dt){
     const {hor,ver}=this.axes();
@@ -286,7 +299,9 @@ class DockyardGame {
   }
   updateCamera(dt){
     const focus=(this.mode==='walk'?this.avatar.position:this.mode==='ferry'?this.ferry.root.position:this.hoist.root.position).clone();
-    const heading=this.mode==='ferry'?this.ferryHeading:this.mode==='hoist'?this.hoistHeading:this.avatar.rotation.y;
+    // Pedestrian camera orientation is independent of body turning; this
+    // prevents forward movement from feeding back into the camera heading.
+    const heading=this.mode==='ferry'?this.ferryHeading:this.mode==='hoist'?this.hoistHeading:0;
     let look=focus.clone().add(new THREE.Vector3(0,this.mode==='hoist'?9:this.mode==='ferry'?2.2:1.4,0));
     let offset;
     if(this.cameraMode===1){
@@ -318,10 +333,13 @@ class DockyardGame {
     $('distanceLabel').textContent=this.phaseId==='COMPLETE'?'SUCCESS':`${Math.round(d)} m TO TARGET`;
     $('modeLabel').textContent=this.mode==='walk'?'ON FOOT':this.mode==='ferry'?'FERRY':'TRAVEL LIFT';
     $('vehicleName').textContent=this.mode==='walk'?'PEDESTRIAN':this.mode==='ferry'?'FERRY RTL-STYLE':'200T TRAVEL LIFT';
-    $('speed').textContent=(this.mode==='ferry'?Math.abs(this.ferrySpeed):this.mode==='hoist'?Math.abs(this.hoistSpeed):0).toFixed(1);
-    $('speedUnit').textContent=this.mode==='walk'?'WALKING':'GAME m/s';
+    $('speed').textContent=(this.mode==='ferry'?Math.abs(this.ferrySpeed):this.mode==='hoist'?Math.abs(this.hoistSpeed):this.character.speed).toFixed(1);
+    $('speedUnit').textContent='GAME m/s';
     $('liftReading').textContent=this.mode==='hoist'?`LIFT ${Math.round(this.liftHeight/MISSION.maxLift*100)}%`:'HOIST READY';
-    $('instrumentFoot').textContent=this.mode==='walk'?'WASD WALK · E ACTION':this.mode==='ferry'?'WASD PILOT · SPACE BRAKE':'WASD DRIVE · R/F HOIST';
+    $('instrumentFoot').textContent=this.mode==='walk'?'WASD WALK · SHIFT RUN · SPACE JUMP':this.mode==='ferry'?'WASD PILOT · SPACE BRAKE':'WASD DRIVE · R/F HOIST';
+    const brake=$('touchBrake');
+    brake.firstChild.textContent=this.mode==='walk'?'↑':'■';
+    brake.querySelector('span').textContent=this.mode==='walk'?'JUMP':'BRAKE';
     $('waypointName').textContent=phase.name;
     const action=$('touchAction');
     action.style.display=['DISPATCH','SAIL','BOARD_HOIST','POSITION'].includes(this.phaseId)?'block':'none';

@@ -1,8 +1,8 @@
 // Pure gameplay rules, separate from Three.js rendering.
 export const PHASES = Object.freeze([
-  {id:'DISPATCH', name:'HARBOR DISPATCH', objective:'Walk to harbor dispatch and board the waiting ferry.', hint:'WASD move · E board at the gold marker'},
+  {id:'DISPATCH', name:'HARBOR DISPATCH', objective:'Walk to harbor dispatch and board the waiting ferry.', hint:'WASD camera-relative walk · SHIFT sprint · SPACE jump · E board'},
   {id:'SAIL', name:'FERRY ARRIVAL', objective:'Pilot the ferry into the lifting basin and stop at the marker.', hint:'W throttle · A/D steer · SPACE brake · E disembark when aligned'},
-  {id:'BOARD_HOIST', name:'BOARD THE HOIST', objective:'Approach the blue 200T travel lift and enter its controls.', hint:'WASD walk · E enter travel lift'},
+  {id:'BOARD_HOIST', name:'BOARD THE HOIST', objective:'Approach the blue 200T travel lift and enter its controls.', hint:'WASD walk · SHIFT sprint · E enter travel lift'},
   {id:'POSITION', name:'HOIST ALIGNMENT', objective:'Reverse the hoist over the vessel in the lifting basin.', hint:'S reverse · A/D steer · SPACE brake · E attach when aligned'},
   {id:'LIFT', name:'LIFT THE FERRY', objective:'Raise the simulated slings until the hull clears the ground.', hint:'Hold R or ▲ RAISE until the lifting indicator reaches the target'},
   {id:'HAUL', name:'TRANSFER TO BAY 03', objective:'Drive the loaded travel lift to the designated dry-docking bay.', hint:'W/S drive · A/D steer · C camera · SPACE brake'},

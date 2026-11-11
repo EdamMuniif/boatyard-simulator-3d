@@ -1,4 +1,4 @@
-# Architecture — Boatyard Simulator 3D v0.3
+# Architecture — Boatyard Simulator 3D v0.3.1
 
 ## Objective and boundaries
 
@@ -17,6 +17,8 @@ index.html / styles.css
       │         ▼
       │    rules.js
       │    phase metadata, conditions and checkpoints
+      │    character-motion.js
+      │    input-to-velocity, grounded jump and animation phases
       │    collision.js
       │    obstacle definitions and swept 2D overlap
       ▼
@@ -56,6 +58,15 @@ The single source of gameplay rule constants is `rules.js`; edit thresholds ther
 Three.js uses **Y-up**. `X` is horizontal across the shipyard; `Z` runs from the harbor toward inland. Ferry bow points +Z when piloted into the lifting basin. The initial ferry is at `(0, 0, -49)`, basin target `(0, 0, 16)`, and dry-dock target `(34, 0, 108)`. These are fictional world-units. They are **not** actual Thilafushi site coordinates.
 
 The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled cutout, each carrying one row of the travel lift's wheels in the basin scene. The vessel hull is carried and moved by an arcade transform synchronized to the hoist in the first iteration; no physical force transfer is computed.
+
+### v0.3.1 player motion
+
+- `character-motion.js` is a pure deterministic ground controller without Three.js or external physics dependencies. It produces camera-relative horizontal movement, acceleration, deceleration, sprint speed, gravity/jump state, smooth heading and gait phase.
+- `main.js` passes existing keyboard/touch axes into the controller, then updates the avatar mesh transform. While walking, the camera orbit does not follow avatar heading; camera-relative controls therefore avoid a self-reinforcing turning loop.
+- `geometry.js` retains `createPlayer()` API with a low-poly articulated rig and adds `animatePlayer()` for opposing leg/arm swing and torso bob. One set of scene objects is created during startup; no per-frame mesh allocations.
+- `collision.js` remains the authoritative 2D circle boundary test; player movement is substepped and slides against obstructions. Jump physics affect only Y on flat ground and cannot cross the basin shoreline.
+- On disembark or checkpoint recovery, player motion and pose reset. Vessel, hoist, mission state, camera selection, and mobile controls remain active.
+- Player motion speeds are fictional game units, not surveyed measurements. Rapier-based full 3D collision is outside the scope of this minimal incremental version.
 
 ### v0.3 rendering/animation separation
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {characterPose} from './character-motion.js';
 import {SLING_STATIONS,SLING_SEGMENTS,SLING_HALF_SPAN,SLING_WEB_WIDTH,rigPose,slingPoint} from './rigging-profile.js';
 
 const mat = (color, roughness = 0.78, metalness = 0.05) => new THREE.MeshStandardMaterial({color, roughness, metalness});
@@ -234,21 +235,62 @@ export function createFerry(){
 
 export function createPlayer(){
   const root=new THREE.Group();root.name='Player';
-  const boots=mat('#1c2732'),navy=mat('#153f66'),skin=mat('#b98763'),hat=mat('#267fb0');
-  box(root,.76,1.0,.42,0,1.18,0,navy);
-  cylinder(root,.27,.26,.36,0,1.88,0,skin,11);
-  cylinder(root,.39,.39,.22,0,2.12,0,hat,14);
-  box(root,.81,.12,.57,0,2.12,.13,hat,false);
-  for(const x of [-.51,.51]){
-    box(root,.22,.83,.25,x,1.24,0,navy);
-    box(root,.2,.14,.21,x,.81,0,skin);
+  const navy=mat('#153f66'),navyLight=mat('#225b81');
+  const boots=mat('#1b2933'),skin=mat('#b98763'),hat=mat('#2685b4');
+  const visual=new THREE.Group();visual.name='Animated player rig';
+  root.add(visual);
+
+  // Parent groups serve as low-poly shoulder, hip and torso joints.
+  // This keeps the avatar lightweight and animated without external assets.
+  const torso=new THREE.Group();torso.position.set(0,1.12,0);visual.add(torso);
+  box(torso,.77,.88,.46,0,.28,0,navy);
+  box(torso,.80,.16,.49,0,-.19,0,navyLight);
+  box(torso,.68,.10,.48,0,.73,0,navyLight,false);
+  const neck=cylinder(torso,.15,.15,.20,0,.82,0,skin,10);
+  const head=new THREE.Group();head.position.set(0,.99,0);torso.add(head);
+  cylinder(head,.29,.28,.40,0,.07,0,skin,14);
+  cylinder(head,.40,.40,.22,0,.32,0,hat,14);
+  box(head,.83,.10,.56,0,.28,.15,hat,false);
+  // Minimal neutral face detail makes orientation legible from chase camera.
+  for(const x of [-.105,.105])box(head,.065,.045,.035,x,.09,.27,boots,false);
+
+  const arms=[];
+  for(const side of [-1,1]){
+    const pivot=new THREE.Group();pivot.position.set(side*.53,.56,0);torso.add(pivot);
+    box(pivot,.24,.40,.28,0,-.18,0,navy);
+    const elbow=new THREE.Group();elbow.position.set(0,-.37,0);pivot.add(elbow);
+    box(elbow,.21,.32,.25,0,-.14,0,navyLight);
+    box(elbow,.22,.16,.24,0,-.35,0,skin);
+    arms.push(pivot);
   }
-  for(const x of [-.22,.22]){
-    box(root,.29,.72,.32,x,.39,0,boots);
-    box(root,.32,.17,.47,x,.10,.08,boots);
+
+  const legs=[],knees=[];
+  for(const side of [-1,1]){
+    const hip=new THREE.Group();hip.position.set(side*.22,.94,0);visual.add(hip);
+    box(hip,.28,.48,.34,0,-.24,0,navy);
+    const knee=new THREE.Group();knee.position.set(0,-.47,0);hip.add(knee);
+    box(knee,.27,.38,.34,0,-.18,0,navyLight);
+    box(knee,.31,.18,.48,0,-.38,.10,boots);
+    legs.push(hip);knees.push(knee);
   }
+  root.userData.characterRig={visual,torso,head,arms,legs,knees};
   root.traverse(obj=>{if(obj.isMesh)obj.castShadow=true;});
   return root;
+}
+
+export function animatePlayer(root,motion){
+  const rig=root.userData.characterRig;
+  if(!rig)return;
+  const pose=characterPose(motion);
+  rig.visual.position.y=pose.bob;
+  rig.torso.rotation.x=pose.lean;
+  rig.legs[0].rotation.x=pose.leftLeg;
+  rig.legs[1].rotation.x=pose.rightLeg;
+  rig.knees[0].rotation.x=Math.max(0,-pose.leftLeg)*.50;
+  rig.knees[1].rotation.x=Math.max(0,-pose.rightLeg)*.50;
+  rig.arms[0].rotation.x=pose.leftArm;
+  rig.arms[1].rotation.x=pose.rightArm;
+  rig.head.rotation.y=Math.sin(motion.stridePhase)*Math.min(motion.speed/5.2,.02);
 }
 
 export function createWaypoint(label, color='#f3c278'){
