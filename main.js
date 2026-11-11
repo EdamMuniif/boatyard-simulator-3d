@@ -4,6 +4,7 @@ import {createHoist,createFerry,createPlayer,animatePlayer,createWaypoint} from 
 import {createCharacterMotion,resetCharacterMotion,stepCharacterMotion} from './character-motion.js';
 import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock,checkpointForPhase} from './rules.js';
 import {canWalkAt,canFerryAt,canHoistAt,sweepVehicle} from './collision.js';
+import {proposeHoistMotion,wheelSteeringTarget} from './hoist-steering.js';
 
 const $=id=>document.getElementById(id);
 const clamp=THREE.MathUtils.clamp;
@@ -40,7 +41,7 @@ class DockyardGame {
     this.ferrySpeed=0;this.ferryHeading=0;this.hoistSpeed=0;this.hoistHeading=0;
     this.lastHoistSpeed=0;
     this.liftHeight=0;this.attached=false;
-    this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false};
+    this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false,turnLeft:false,turnRight:false};
     this.orbitYaw=.0;this.orbitPitch=0;this.frameTime=performance.now();this.uiTime=0;this.toastDeadline=0;
     this.prevTarget=new THREE.Vector3();
     this.createInput();this.bindButtons();this.updateWaypoint();this.updateUI();
@@ -75,6 +76,7 @@ class DockyardGame {
   togglePause(){
     if(!this.started||this.phaseId==='COMPLETE')return;
     this.paused=!this.paused;
+    if(this.paused){this.touch.turnLeft=false;this.touch.turnRight=false;}
     $('pauseScreen').classList.toggle('hidden',!this.paused);
     document.body.classList.toggle('paused',this.paused);
   }
@@ -90,7 +92,7 @@ class DockyardGame {
       if(e.code==='KeyC')this.switchCamera();
     });
     window.addEventListener('keyup',e=>{this.keys[e.code]=false;});
-    window.addEventListener('blur',()=>{this.keys={};this.touch.raise=false;this.touch.lower=false;this.touch.brake=false;});
+    window.addEventListener('blur',()=>{this.keys={};this.touch.raise=false;this.touch.lower=false;this.touch.brake=false;this.touch.turnLeft=false;this.touch.turnRight=false;});
     let dragging=false,lastX=0,lastY=0;
     this.renderer.domElement.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;this.renderer.domElement.setPointerCapture(e.pointerId);});
     this.renderer.domElement.addEventListener('pointermove',e=>{
@@ -118,6 +120,7 @@ class DockyardGame {
     joystick.addEventListener('pointerup',release);joystick.addEventListener('pointercancel',release);
     const hold=(id,key)=>{const b=$(id);b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);this.touch[key]=true;});for(const name of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(name,()=>this.touch[key]=false);};
     hold('touchRaise','raise');hold('touchLower','lower');hold('touchBrake','brake');
+    hold('touchTurnLeft','turnLeft');hold('touchTurnRight','turnRight');
   }
   bindButtons(){
     $('startButton').addEventListener('click',()=>this.start());
@@ -178,7 +181,7 @@ class DockyardGame {
     if(this.ferry.visual)this.ferry.visual.rotation.set(0,0,0);
     this.liftHeight=state.liftHeight;this.attached=state.attached;
     this.hoist.setRigging(this.liftHeight,this.attached);
-    this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false};
+    this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false,turnLeft:false,turnRight:false};
     $('joystickThumb').style.transform='translate(0,0)';
     this.cameraMode=0;this.orbitYaw=0;this.orbitPitch=0;
     this.paused=false;$('pauseScreen').classList.add('hidden');
@@ -232,22 +235,33 @@ class DockyardGame {
     const {hor,ver}=this.axes();const stage=this.phaseId;
     const drivingAllowed=stage==='POSITION'||stage==='HAUL';
     const throttle=drivingAllowed?ver:0;
+    // Dedicated press-and-hold buttons offer precise turning on mobile.
+    // A/D or joystick X also turn the hoist, even when stationary.
+    const extraTurn=(this.touch.turnRight?1:0)-(this.touch.turnLeft?1:0);
+    const steering=drivingAllowed?clamp(hor+extraTurn,-1,1):0;
     const drag=drivingAllowed?1.25:7.0;
     this.hoistSpeed=clamp(this.hoistSpeed+throttle*4.5*dt-this.hoistSpeed*drag*dt,-4.25,5.25);
     if(this.keys.Space||this.touch.brake)this.hoistSpeed=damp(this.hoistSpeed,0,8,dt);
     const p=this.hoist.root.position;
     const oldHeading=this.hoistHeading;
-    const proposedHeading=oldHeading+(drivingAllowed?hor*this.hoistSpeed*.12*dt:0);
-    const nx=p.x+Math.sin(proposedHeading)*this.hoistSpeed*dt;
-    const nz=p.z+Math.cos(proposedHeading)*this.hoistSpeed*dt;
-    if(sweepVehicle(p,{x:nx,z:nz},oldHeading,proposedHeading,canHoistAt)){
-      p.x=nx;p.z=nz;this.hoistHeading=proposedHeading;
+    const proposed=proposeHoistMotion({
+      x:p.x,z:p.z,heading:oldHeading,speed:this.hoistSpeed
+    },{steer:steering,throttle,brake:!!(this.keys.Space||this.touch.brake)},dt);
+    if(sweepVehicle(p,proposed,oldHeading,proposed.heading,canHoistAt)){
+      p.x=proposed.x;p.z=proposed.z;this.hoistHeading=proposed.heading;
+      if(proposed.pivot)this.hoistSpeed=0;
     }else{
       this.hoistSpeed=0;
-      this.notifyLimited('YARD OBSTACLE // Reposition the travel lift.');
+      this.notifyLimited('YARD LIMIT // Cannot turn through obstacles or over water.');
     }
+    const appliedHeading=this.hoistHeading-oldHeading;
     this.hoist.root.rotation.y=this.hoistHeading;
-    this.hoist.wheels.forEach(w=>{w.rotation.x+=this.hoistSpeed*dt/2.08;});
+    for(const wheel of this.hoist.wheels){
+      const target=wheelSteeringTarget(wheel.position.x,wheel.position.z,steering,proposed.pivot);
+      wheel.rotation.y=damp(wheel.rotation.y,target,6.0,dt);
+      const pivotTravel=appliedHeading*Math.hypot(wheel.position.x,wheel.position.z);
+      wheel.userData.roll.rotation.x+=(proposed.pivot?pivotTravel:this.hoistSpeed*dt)/2.08;
+    }
     const raising=(this.keys.KeyR||this.touch.raise)&&stage==='LIFT';
     const lowering=(this.keys.KeyF||this.touch.lower)&&stage==='LOWER';
     if(raising) this.liftHeight=clamp(this.liftHeight+dt*1.2,0,MISSION.maxLift);
@@ -336,7 +350,7 @@ class DockyardGame {
     $('speed').textContent=(this.mode==='ferry'?Math.abs(this.ferrySpeed):this.mode==='hoist'?Math.abs(this.hoistSpeed):this.character.speed).toFixed(1);
     $('speedUnit').textContent='GAME m/s';
     $('liftReading').textContent=this.mode==='hoist'?`LIFT ${Math.round(this.liftHeight/MISSION.maxLift*100)}%`:'HOIST READY';
-    $('instrumentFoot').textContent=this.mode==='walk'?'WASD WALK · SHIFT RUN · SPACE JUMP':this.mode==='ferry'?'WASD PILOT · SPACE BRAKE':'WASD DRIVE · R/F HOIST';
+    $('instrumentFoot').textContent=this.mode==='walk'?'WASD WALK · SHIFT RUN · SPACE JUMP':this.mode==='ferry'?'WASD PILOT · SPACE BRAKE':'A/D TURN · W/S DRIVE';
     const brake=$('touchBrake');
     brake.firstChild.textContent=this.mode==='walk'?'↑':'■';
     brake.querySelector('span').textContent=this.mode==='walk'?'JUMP':'BRAKE';
@@ -346,6 +360,7 @@ class DockyardGame {
     $('touchRaise').style.opacity=this.phaseId==='LIFT'?'1':'.35';
     $('touchLower').style.opacity=this.phaseId==='LOWER'?'1':'.35';
     $('recoverButton').disabled=!this.started||this.phaseId==='COMPLETE';
+    $('hoistTurnControls').classList.toggle('is-visible',this.started&&this.mode==='hoist'&&!this.paused&&['POSITION','HAUL'].includes(this.phaseId));
   }
   drawMap(){
     const cvs=$('minimap'),ctx=cvs.getContext('2d');const W=cvs.width,H=cvs.height;

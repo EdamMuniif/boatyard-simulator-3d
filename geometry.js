@@ -91,15 +91,18 @@ export function createHoist() {
   }
   const wheels=[];
   for(const x of [-W,W])for(const z of [-L,L])for(const offset of [-1.45,1.45]) {
+    // Independent yaw and rolling pivots: steering no longer tilts tyre mesh.
     const pivot=new THREE.Group();pivot.position.set(x+Math.sign(x)*.45,2.28,z+offset);
-    const tire=cylinder(pivot,2.08,2.08,1.08,0,0,0,PALETTE.rubber,20);
+    const roll=new THREE.Group();pivot.add(roll);
+    const tire=cylinder(roll,2.08,2.08,1.08,0,0,0,PALETTE.rubber,20);
     tire.rotation.z=Math.PI/2;
-    const hub=cylinder(pivot,.95,.95,1.12,0,0,0,PALETTE.hub,18); hub.rotation.z=Math.PI/2;
+    const hub=cylinder(roll,.95,.95,1.12,0,0,0,PALETTE.hub,18); hub.rotation.z=Math.PI/2;
     for(let i=0;i<10;i++) {
       const a=i*Math.PI/5;
-      const tread=box(pivot,.95,.23,.46,0,Math.sin(a)*1.96,Math.cos(a)*1.96,PALETTE.dark,false);
+      const tread=box(roll,.95,.23,.46,0,Math.sin(a)*1.96,Math.cos(a)*1.96,PALETTE.dark,false);
       tread.rotation.x=-a;
     }
+    pivot.userData.roll=roll;
     root.add(pivot); wheels.push(pivot);
   }
   // Four reference-inspired U-shaped webbing cradles with animated lifting

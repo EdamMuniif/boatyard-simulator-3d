@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.3.1
+# Boatyard Simulator 3D — Prototype v0.3.2
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -23,6 +23,8 @@ On Windows, `py -m http.server 8080` is an alternative. If Python is not install
 | Action | Desktop | Touch device |
 |---|---|---|
 | Move / drive / steer | W A S D or arrows | Analog virtual joystick |
+| Rotate the hoist at a stop (open yard only) | A / D, release W/S | Hold dedicated ↶ / ↷ buttons, or move joystick left/right |
+| Turn the hoist while driving | A / D with W / S | Hold ↶ / ↷ while using joystick throttle |
 | Walk camera-relative / turn naturally | WASD while on foot | Analog joystick while on foot |
 | Jump on foot | Space | JUMP (same button as vehicle BRAKE) |
 | Interact, board, attach | E | ACTION |
@@ -44,7 +46,7 @@ Three camera modes cycle through *chase*, *tactical overhead*, and *side inspect
 1. Walk to the **Harbor Dispatch** ring and press `E`.
 2. Pilot the ferry straight into the narrow lifting basin. Apply the brake; press `E` when stopped at the marker.
 3. Walk to the **200T travel lift** and press `E` to operate it.
-4. Use `S` to reverse the hoist toward the ferry. Stop aligned above the vessel and press `E` to perform the fictionalized sling-attachment interaction.
+4. Use `S` to reverse the hoist toward the ferry. Turn using A/D (or the mobile ↶/↷ controls), but **pivot only where there is adequate space**—rotation can be blocked in the narrow basin. Stop aligned above the vessel and press `E` to perform the fictionalized sling-attachment interaction.
 5. Hold `R` until the lift indicator completes the required clearance.
 6. Drive forward and steer to **Dry Dock Bay 03**. Stop within the gold target ring.
 7. Hold `F` to lower the ferry onto the support positions and complete the contract.
@@ -64,14 +66,29 @@ boatyard-simulator-3d/
 ├─ collision.js        # Shared colliders and swept collision tests
 ├─ rigging-profile.js  # Visual U-sling curve and lifting-block profiles
 ├─ character-motion.js # Grounded player controller and procedural gait
+├─ hoist-steering.js   # Collision-checked hoist turning / low-speed pivot
 ├─ rules.test.mjs      # Existing mission-rule tests
 ├─ collision.test.mjs  # Terrain, obstacle and sweep tests
 ├─ recovery.test.mjs   # Checkpoint validity tests
 ├─ rigging-profile.test.mjs  # Visual rigging pose/curve tests
 ├─ character-motion.test.mjs # Motion, camera, collision and jump tests
+├─ hoist-steering.test.mjs # Pivot, travel-steering and footprint constraints
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
+
+## v0.3.2 — Hoist turning and mobile rotation
+
+- The travel lift can **rotate at a stop** on clear ground: use A/D with no throttle (desktop), or hold the dedicated ↶/↷ mobile buttons. Joystick left/right still works.
+- Keep W/S for forward and reverse travel. While moving, steering continues to curve the path; when nearly stationary and without throttle, the turn input produces a slow pivot.
+- Pivoting and driving both use the existing `sweepVehicle(...,canHoistAt)` collision checks. The narrow lifting basin and buildings can prevent a rotation; move to a wider location before turning.
+- Separate wheel steering yaw from rolling rotation, with an approximate tangential orientation for a stationary turn.
+- Preserve ferry/character controls, cargo/collision boundaries, game cameras, dry-dock mission flow and checkpoint recovery.
+- Mobile touch turn controls appear only while the player is in the hoist's POSITION or HAUL driving stages; they are press-and-hold and reset on blur or pause.
+
+**Limitation:** A stationary pivot is an arcade game maneuver. These graphics and turn rates must not be treated as a confirmed capability or operating method for the photographed equipment.
+
+**Manual acceptance:** Verify turning 360° in a clear yard area, denial of rotation through buildings and basin edges, wheel yaw animation, alignment and transfer through Bay 03, desktop A/D/W/S, mobile simultaneous steer and throttle, brake, stage recovery and full mission completion.
 
 ## v0.3.1 — Character movement stabilization
 
