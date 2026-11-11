@@ -1,4 +1,4 @@
-# Architecture — Boatyard Simulator 3D v0.3.1
+# Architecture — Boatyard Simulator 3D v0.3.2
 
 ## Objective and boundaries
 
@@ -17,6 +17,8 @@ index.html / styles.css
       │         ▼
       │    rules.js
       │    phase metadata, conditions and checkpoints
+      │    hoist-steering.js
+      │    proposed travel/pivot state (collision-authorized in main.js)
       │    character-motion.js
       │    input-to-velocity, grounded jump and animation phases
       │    collision.js
@@ -58,6 +60,14 @@ The single source of gameplay rule constants is `rules.js`; edit thresholds ther
 Three.js uses **Y-up**. `X` is horizontal across the shipyard; `Z` runs from the harbor toward inland. Ferry bow points +Z when piloted into the lifting basin. The initial ferry is at `(0, 0, -49)`, basin target `(0, 0, 16)`, and dry-dock target `(34, 0, 108)`. These are fictional world-units. They are **not** actual Thilafushi site coordinates.
 
 The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled cutout, each carrying one row of the travel lift's wheels in the basin scene. The vessel hull is carried and moved by an arcade transform synchronized to the hoist in the first iteration; no physical force transfer is computed.
+
+### v0.3.2 turning controls
+
+- `hoist-steering.js` is a pure module for proposing the hoist heading/position change: moving steering remains proportional to travel speed; near zero speed with no throttle, left/right input produces a slow in-place pivot.
+- `main.js` always checks the proposed transform with the existing swept yard collision before committing it. No collision boundaries are relaxed. A turn may fail at the narrow water basin, deliberately.
+- Dedicated mobile ↶/↷ press-and-hold buttons supplement the joystick in hoist-driving phases; keyboard A/D already provides steering. Buttons reset on pause, blur, and checkpoint recovery.
+- Each wheel retains an outer steering pivot and a child rolling group. `main.js` updates them independently, showing tangential wheel alignment in pivot mode. The animation is not a mechanical steering calibration.
+- The model, vessel transfer, mission phases and desktop/mobile UI remain otherwise unchanged. In-place rotation is **fictional arcade gameplay**, not a statement about actual equipment capabilities.
 
 ### v0.3.1 player motion
 

@@ -8,3 +8,34 @@
 .fatal-error p{margin:0 0 18px;font-size:14px;overflow-wrap:anywhere}
 .fatal-error .primary-button{min-width:160px}
 @media(max-width:700px),(pointer:coarse){.checkpoint-button{margin-top:6px;padding:7px 5px;font-size:9px;letter-spacing:.4px}}
+
+/* v0.3.2: stationary travel-lift yaw buttons, shown only on touch layouts.
+   Center placement avoids sharing the joystick's travel/throttle axis. */
+.hoist-turn-controls{display:none;pointer-events:auto;position:absolute;left:50%;bottom:24px;transform:translateX(-50%);align-items:center;flex-direction:column;gap:5px;text-align:center}
+.hoist-turn-controls>span{font-size:8px;letter-spacing:.9px;font-weight:900;color:#f2e1ba;text-shadow:0 2px 4px #000c;white-space:nowrap}
+.hoist-turn-buttons{display:flex;gap:6px;align-items:center}
+.hoist-turn-buttons button{width:40px;height:47px;display:flex;align-items:center;justify-content:center;flex-direction:column;border:1px solid #acd7ea;border-radius:9px;background:#103950ee;color:#f2f9fc;font-size:24px;font-weight:700;touch-action:none;user-select:none;-webkit-user-select:none}
+.hoist-turn-buttons button small{font-size:7px;letter-spacing:.4px}
+.hoist-turn-buttons button:active{background:#236788}
+@media(max-width:700px),(pointer:coarse){
+  .hoist-turn-controls.is-visible{display:flex}
+  .mobile-controls .joystick{width:118px}
+  .mobile-controls .joystick-base{width:96px;height:96px}
+  .mobile-controls .mobile-buttons{grid-template-columns:repeat(3,43px);grid-template-rows:repeat(2,49px);gap:4px}
+  .mobile-controls .round-button{min-width:43px;min-height:43px}
+  .mobile-controls .round-button.action{min-height:102px}
+}
+@media(max-width:430px){
+  .hoist-turn-buttons{flex-direction:column;gap:3px}
+  .hoist-turn-buttons button{width:43px;height:39px;font-size:19px}
+  .hoist-turn-controls{bottom:25px}
+}
+@media(max-width:350px){
+  .mobile-controls{padding-inline:8px}
+  .mobile-controls .joystick{width:95px}
+  .mobile-controls .joystick-base{width:82px;height:82px}
+  .mobile-controls .mobile-buttons{grid-template-columns:repeat(3,40px);grid-template-rows:repeat(2,45px);gap:3px}
+  .mobile-controls .round-button{min-width:40px;min-height:40px}
+  .mobile-controls .round-button.action{min-height:93px}
+  .hoist-turn-buttons button{width:38px}
+}
