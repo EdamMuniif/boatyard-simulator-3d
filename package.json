@@ -1,13 +1,13 @@
 {
   "name": "boatyard-simulator-3d",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
-  "description": "Three.js boatyard simulation with reference-inspired hoist, sling and vessel visuals",
+  "description": "Three.js shipyard simulator with animated character movement, boat hoist and vessel dry-docking",
   "scripts": {
     "start": "python3 -m http.server 8080",
     "test": "node --test *.test.mjs",
-    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js && node --check rigging-profile.js"
+    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js && node --check rigging-profile.js && node --check character-motion.js"
   },
   "license": "UNLICENSED"
 }

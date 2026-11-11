@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.3
+# Boatyard Simulator 3D — Prototype v0.3.1
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -22,11 +22,13 @@ On Windows, `py -m http.server 8080` is an alternative. If Python is not install
 
 | Action | Desktop | Touch device |
 |---|---|---|
-| Move / drive / steer | W A S D or arrows | Virtual joystick |
+| Move / drive / steer | W A S D or arrows | Analog virtual joystick |
+| Walk camera-relative / turn naturally | WASD while on foot | Analog joystick while on foot |
+| Jump on foot | Space | JUMP (same button as vehicle BRAKE) |
 | Interact, board, attach | E | ACTION |
 | Lift vessel | Hold R | Hold ▲ RAISE |
 | Lower vessel | Hold F | Hold ▼ LOWER |
-| Stop / brake | Space | Hold BRAKE |
+| Stop / brake (vehicles only) | Space | Hold BRAKE |
 | Change camera | C | CAM |
 | Orbit camera | Drag on 3D viewport | Drag on empty viewport |
 | Zoom camera | Mouse wheel | — |
@@ -61,13 +63,29 @@ boatyard-simulator-3d/
 ├─ rules.js            # Mission stages and checkpoints
 ├─ collision.js        # Shared colliders and swept collision tests
 ├─ rigging-profile.js  # Visual U-sling curve and lifting-block profiles
+├─ character-motion.js # Grounded player controller and procedural gait
 ├─ rules.test.mjs      # Existing mission-rule tests
 ├─ collision.test.mjs  # Terrain, obstacle and sweep tests
 ├─ recovery.test.mjs   # Checkpoint validity tests
 ├─ rigging-profile.test.mjs  # Visual rigging pose/curve tests
+├─ character-motion.test.mjs # Motion, camera, collision and jump tests
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
+
+## v0.3.1 — Character movement stabilization
+
+- Camera-relative walking rather than fixed world-axis translation; camera direction stays independent of the player's body heading.
+- Kinematic momentum (accelerate, slow down, sprint) and consistent diagonal speed; mobile analog joystick controls pace and automatically sprints near full deflection.
+- Procedural jointed humanoid with animated hips, knees, arms and torso lean plus smooth heading turns and landing/idle transitions.
+- Flat-ground gravity and an arcade jump (Space on foot, shared JUMP/BRAKE touch button); the same key continues to brake vehicles.
+- Preserve existing `canWalkAt()` obstacle/basin boundaries with incremental, axis-wise sliding and blocked-axis velocity reset. Jumping does not bypass horizontal collision.
+- Recovery and ferry disembark reset the motion state to avoid stale velocity/animations.
+- No added package dependencies and no branded model content.
+
+**Physics limitation:** This is a game-style kinematic controller on a flat ground plane (Y = 0), not a ragdoll, skeletal-mesh animation asset, or 3D capsule rigid-body simulation. Slopes, stairs, and dynamic-object pushes remain future work.
+
+**Pre-merge testing:** Verify keyboard/touch acceleration, braking, turning, jump/landing, camera relative direction in all 3 views, shipyard boundaries, stage recovery, ferry boarding, and full dry-dock mission completion.
 
 ## v0.3 — Visual and handling improvements
 
