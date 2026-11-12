@@ -6,7 +6,10 @@ import {createCharacterMotion,stepCharacterMotion} from './character-motion.js';
 const rect={left:0,top:0,width:100,height:100};
 const advance=(input,cameraYaw)=>{
   const state=createCharacterMotion();
-  for(let i=0;i<48;i++)stepCharacterMotion(state,{...input,cameraYaw},1/60);
+  // The game translates raw joystick (x,y) to controller (hor,ver) in axes().
+  const movement=('x' in input || 'y' in input)
+    ? {hor:input.x||0,ver:-(input.y||0)} : input;
+  for(let i=0;i<48;i++)stepCharacterMotion(state,{...movement,cameraYaw},1/60);
   return state;
 };
 const projection=(s,yaw)=>({
