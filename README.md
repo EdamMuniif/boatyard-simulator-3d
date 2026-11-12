@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.3.4
+# Boatyard Simulator 3D — Prototype v0.3.5
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -82,6 +82,14 @@ boatyard-simulator-3d/
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
+
+## v0.3.5 — Fix reversed player left/right movement
+
+- Corrected the camera-relative screen-right vector in `character-motion.js`: horizontal input now maps to the camera's right/left rather than the opposite direction.
+- Applies to both mobile joystick and A/D keyboard movement **on foot only**; ferry and hoist turning are unchanged.
+- Updated earlier camera and shore-boundary regression tests, and added independent joystick-to-screen-direction tests for multiple camera headings.
+- Same acceleration, jump, animation, player collision and mission recovery behavior.
+- Pre-merge browser check: walking in chase, overhead and side views should match the joystick's left/right direction while the camera is moving.
 
 ## v0.3.4 — Control input reliability
 
