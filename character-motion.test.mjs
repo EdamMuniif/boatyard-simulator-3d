@@ -29,16 +29,16 @@ test('camera-relative rotation changes the world direction',()=>{
   const forward=tick(createCharacterMotion(),{hor:0,ver:1,cameraYaw:Math.PI/2},.6);
   assert.ok(forward.x>0.5&&Math.abs(forward.z)<.1);
   const side=tick(createCharacterMotion(),{hor:1,ver:0,cameraYaw:Math.PI/2},.6);
-  assert.ok(side.z<-.5);
+  assert.ok(side.z>.5);
   assert.ok(Number.isFinite(forward.heading));
 });
 test('yard obstacle sliding preserves existing quay and workshop collision',()=>{
   const s=createCharacterMotion({x:-19,y:0,z:100});
-  tick(s,{hor:-1,ver:1,cameraYaw:0},1.5,canWalkAt);
+  tick(s,{hor:1,ver:1,cameraYaw:0},1.5,canWalkAt);
   assert.ok(canWalkAt(s));
   assert.ok(s.x>-33.9,'character should not cross workshop west wall');
   const water=createCharacterMotion({x:-14,y:0,z:16});
-  tick(water,{hor:1,ver:0,cameraYaw:0},2,canWalkAt);
+  tick(water,{hor:-1,ver:0,cameraYaw:0},2,canWalkAt);
   assert.ok(canWalkAt(water));
   assert.ok(water.x<-10.5,'must not walk into lifting basin');
 });

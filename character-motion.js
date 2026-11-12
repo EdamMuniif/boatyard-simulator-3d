@@ -30,6 +30,8 @@ export function resetCharacterMotion(state,position,heading=0){
 }
 
 // Camera heading is projected onto the X/Z plane: +Z is zero radians.
+// The camera's *screen-right* direction is (-cos(yaw), +sin(yaw)).
+// This sign is intentional: when the camera looks along +Z, its right is -X.
 // hor and ver are normalized by the caller for analog+keyboard parity.
 export function stepCharacterMotion(state,input,dt,canStand=()=>true){
   if(!Number.isFinite(dt)||dt<=0)return state;
@@ -38,8 +40,8 @@ export function stepCharacterMotion(state,input,dt,canStand=()=>true){
   const rawLength=Math.hypot(h,v);
   const amount=Math.min(1,rawLength);
   const heading=Number.isFinite(input.cameraYaw)?input.cameraYaw:0;
-  const moveX=rawLength>0?(h*Math.cos(heading)+v*Math.sin(heading))/rawLength:0;
-  const moveZ=rawLength>0?(-h*Math.sin(heading)+v*Math.cos(heading))/rawLength:0;
+  const moveX=rawLength>0?(-h*Math.cos(heading)+v*Math.sin(heading))/rawLength:0;
+  const moveZ=rawLength>0?(h*Math.sin(heading)+v*Math.cos(heading))/rawLength:0;
   const maxSpeed=input.sprint?CHARACTER_TUNING.runSpeed:CHARACTER_TUNING.walkSpeed;
   const targetX=moveX*maxSpeed*amount;
   const targetZ=moveZ*maxSpeed*amount;

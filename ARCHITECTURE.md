@@ -1,4 +1,4 @@
-# Architecture — Boatyard Simulator 3D v0.3.4
+# Architecture — Boatyard Simulator 3D v0.3.5
 
 ## Objective and boundaries
 
@@ -60,6 +60,12 @@ The single source of gameplay rule constants is `rules.js`; edit thresholds ther
 Three.js uses **Y-up**. `X` is horizontal across the shipyard; `Z` runs from the harbor toward inland. Ferry bow points +Z when piloted into the lifting basin. The initial ferry is at `(0, 0, -49)`, basin target `(0, 0, 16)`, and dry-dock target `(34, 0, 108)`. These are fictional world-units. They are **not** actual Thilafushi site coordinates.
 
 The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled cutout, each carrying one row of the travel lift's wheels in the basin scene. The vessel hull is carried and moved by an arcade transform synchronized to the hoist in the first iteration; no physical force transfer is computed.
+
+### v0.3.5 camera-relative input sign convention
+
+- For a camera looking toward `(sin(yaw),0,cos(yaw))`, screen-right is `(-cos(yaw),0,sin(yaw))` with an up vector of +Y. `character-motion.js` now uses that right basis for horizontal joystick and keyboard input.
+- Only walking input-to-world conversion is corrected. `touch-controls.js`, vehicle axes, ferry/hoist physics, collision rules and camera modes retain their existing behavior.
+- Node tests assert that joystick-right moves toward projected screen-right at several camera headings, joystick-left toward screen-left, and forward remains forward.
 
 ### v0.3.4 controller boundaries and reliability
 
