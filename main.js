@@ -44,7 +44,7 @@ class DockyardGame {
     this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false,turnLeft:false,turnRight:false};
     this.orbitYaw=.0;this.orbitPitch=0;this.frameTime=performance.now();this.uiTime=0;this.toastDeadline=0;
     this.prevTarget=new THREE.Vector3();
-    this.createInput();this.bindButtons();this.updateWaypoint();this.updateUI();
+    this.createInput();this.bindButtons();this.initResponsiveUI();this.updateWaypoint();this.updateUI();
     window.addEventListener('resize',()=>this.onResize());
     this.animate=this.animate.bind(this);requestAnimationFrame(this.animate);
   }
@@ -76,13 +76,75 @@ class DockyardGame {
   togglePause(){
     if(!this.started||this.phaseId==='COMPLETE')return;
     this.paused=!this.paused;
-    if(this.paused){this.touch.turnLeft=false;this.touch.turnRight=false;}
+    if(this.paused)this.clearTransientInput();
     $('pauseScreen').classList.toggle('hidden',!this.paused);
     document.body.classList.toggle('paused',this.paused);
+    this.updateUI();
+  }
+  clearTransientInput(){
+    this.keys={};
+    Object.assign(this.touch,{x:0,y:0,raise:false,lower:false,brake:false,turnLeft:false,turnRight:false});
+    $('joystickThumb').style.transform='translate(0,0)';
+  }
+  initResponsiveUI(){
+    this.helpOpen=false;
+    this.wasPausedBeforeHelp=false;
+    this.missionDetailsUserSet=false;
+    this.mapUserSet=false;
+    this.compactScreen=window.matchMedia('(max-width: 700px), (max-height: 510px)');
+    const onLayoutChange=()=>{
+      if(!this.missionDetailsUserSet)this.setMissionDetails(!this.compactScreen.matches);
+      if(!this.mapUserSet)this.setMapExpanded(!this.compactScreen.matches);
+    };
+    onLayoutChange();
+    if(this.compactScreen.addEventListener)this.compactScreen.addEventListener('change',onLayoutChange);
+    else if(this.compactScreen.addListener)this.compactScreen.addListener(onLayoutChange);
+  }
+  setMissionDetails(open){
+    $('missionPanel').classList.toggle('is-compact',!open);
+    const b=$('missionDetailsToggle');
+    b.textContent=open?'LESS':'MORE';
+    b.setAttribute('aria-expanded',String(open));
+    b.setAttribute('aria-label',open?'Hide mission instructions':'Show mission instructions');
+  }
+  setMapExpanded(open){
+    $('minimap').closest('.map-wrap').classList.toggle('is-collapsed',!open);
+    const b=$('mapToggle');
+    b.textContent=open?'− MAP':'+ MAP';
+    b.setAttribute('aria-expanded',String(open));
+    b.setAttribute('aria-label',open?'Collapse minimap':'Expand minimap');
+  }
+  openHelp(trigger=$('hudHelp')){
+    if(this.helpOpen)return;
+    this.helpTrigger=trigger;
+    this.helpOpen=true;
+    this.wasPausedBeforeHelp=this.paused;
+    this.paused=true;
+    this.clearTransientInput();
+    $('pauseScreen').classList.add('hidden');
+    $('helpScreen').classList.remove('hidden');
+    document.body.classList.add('paused');
+    $('closeHelp').focus();
+    this.updateUI();
+  }
+  closeHelp(){
+    if(!this.helpOpen)return;
+    this.helpOpen=false;
+    this.paused=this.wasPausedBeforeHelp;
+    $('helpScreen').classList.add('hidden');
+    $('pauseScreen').classList.toggle('hidden',!this.paused);
+    document.body.classList.toggle('paused',this.paused);
+    if(this.helpTrigger?.isConnected)this.helpTrigger.focus();
+    this.updateUI();
   }
   createInput(){
     window.addEventListener('keydown',e=>{
       if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
+      if(this.helpOpen){
+        if(e.code==='Escape'||e.code==='KeyH')this.closeHelp();
+        return;
+      }
+      if(e.code==='KeyH'&&!e.repeat){this.openHelp();return;}
       this.keys[e.code]=true;
       if(e.repeat)return;
       if(e.code==='KeyP'||e.code==='Escape'){this.togglePause();return;}
@@ -92,7 +154,7 @@ class DockyardGame {
       if(e.code==='KeyC')this.switchCamera();
     });
     window.addEventListener('keyup',e=>{this.keys[e.code]=false;});
-    window.addEventListener('blur',()=>{this.keys={};this.touch.raise=false;this.touch.lower=false;this.touch.brake=false;this.touch.turnLeft=false;this.touch.turnRight=false;});
+    window.addEventListener('blur',()=>this.clearTransientInput());
     let dragging=false,lastX=0,lastY=0;
     this.renderer.domElement.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;this.renderer.domElement.setPointerCapture(e.pointerId);});
     this.renderer.domElement.addEventListener('pointermove',e=>{
@@ -117,7 +179,9 @@ class DockyardGame {
     joystick.addEventListener('pointerdown',e=>{e.preventDefault();jid=e.pointerId;joystick.setPointerCapture(jid);move(e);});
     joystick.addEventListener('pointermove',move);
     const release=e=>{if(jid!==e.pointerId)return;jid=null;this.touch.x=0;this.touch.y=0;thumb.style.transform='translate(0,0)';};
-    joystick.addEventListener('pointerup',release);joystick.addEventListener('pointercancel',release);
+    joystick.addEventListener('pointerup',release);
+    joystick.addEventListener('pointercancel',release);
+    joystick.addEventListener('lostpointercapture',release);
     const hold=(id,key)=>{const b=$(id);b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);this.touch[key]=true;});for(const name of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(name,()=>this.touch[key]=false);};
     hold('touchRaise','raise');hold('touchLower','lower');hold('touchBrake','brake');
     hold('touchTurnLeft','turnLeft');hold('touchTurnRight','turnRight');
@@ -129,6 +193,19 @@ class DockyardGame {
     $('restartFromPause').addEventListener('click',()=>window.location.reload());
     $('touchAction').addEventListener('click',()=>this.action());
     $('touchCamera').addEventListener('click',()=>this.switchCamera());
+    $('hudPause').addEventListener('click',()=>this.togglePause());
+    for(const id of ['hudHelp','helpFromStart','helpFromPause']){
+      $(id).addEventListener('click',event=>this.openHelp(event.currentTarget));
+    }
+    $('closeHelp').addEventListener('click',()=>this.closeHelp());
+    $('missionDetailsToggle').addEventListener('click',()=>{
+      this.missionDetailsUserSet=true;
+      this.setMissionDetails($('missionPanel').classList.contains('is-compact'));
+    });
+    $('mapToggle').addEventListener('click',()=>{
+      this.mapUserSet=true;
+      this.setMapExpanded($('minimap').closest('.map-wrap').classList.contains('is-collapsed'));
+    });
     $('recoverButton').addEventListener('click',()=>this.recoverCheckpoint());
     $('recoverFromPause').addEventListener('click',()=>this.recoverCheckpoint());
   }
@@ -189,7 +266,7 @@ class DockyardGame {
     this.updateWaypoint();this.updateUI();
     this.notify('CHECKPOINT RESTORED // Current mission stage restarted.',2600);
   }
-  switchCamera(){if(!this.started)return;this.cameraMode=(this.cameraMode+1)%3;this.notify(['CHASE CAMERA','TACTICAL OVERHEAD CAMERA','SIDE INSPECTION CAMERA'][this.cameraMode],1200);}
+  switchCamera(){if(!this.started||this.paused)return;this.cameraMode=(this.cameraMode+1)%3;this.notify(['CHASE CAMERA','TACTICAL OVERHEAD CAMERA','SIDE INSPECTION CAMERA'][this.cameraMode],1200);}
   axes(){
     const hor=(this.keys.KeyD||this.keys.ArrowRight?1:0)-(this.keys.KeyA||this.keys.ArrowLeft?1:0)+this.touch.x;
     const ver=(this.keys.KeyW||this.keys.ArrowUp?1:0)-(this.keys.KeyS||this.keys.ArrowDown?1:0)-this.touch.y;
@@ -356,10 +433,20 @@ class DockyardGame {
     brake.querySelector('span').textContent=this.mode==='walk'?'JUMP':'BRAKE';
     $('waypointName').textContent=phase.name;
     const action=$('touchAction');
-    action.style.display=['DISPATCH','SAIL','BOARD_HOIST','POSITION'].includes(this.phaseId)?'block':'none';
-    $('touchRaise').style.opacity=this.phaseId==='LIFT'?'1':'.35';
-    $('touchLower').style.opacity=this.phaseId==='LOWER'?'1':'.35';
-    $('recoverButton').disabled=!this.started||this.phaseId==='COMPLETE';
+    const touchLabels={DISPATCH:'BOARD',SAIL:'SECURE',BOARD_HOIST:'ENTER',POSITION:'ATTACH'};
+    const canAct=Object.prototype.hasOwnProperty.call(touchLabels,this.phaseId);
+    action.style.display=canAct?'block':'none';
+    action.disabled=!this.started||this.paused;
+    action.querySelector('span').textContent=touchLabels[this.phaseId]||'ACTION';
+    action.setAttribute('aria-label',touchLabels[this.phaseId]||'Mission interaction');
+    $('touchRaise').disabled=this.phaseId!=='LIFT'||this.paused||!this.started;
+    $('touchLower').disabled=this.phaseId!=='LOWER'||this.paused||!this.started;
+    $('touchCamera').disabled=!this.started||this.paused;
+    const pause=$('hudPause');
+    pause.disabled=!this.started||this.phaseId==='COMPLETE'||this.helpOpen;
+    pause.textContent=this.paused?'▶ RESUME':'Ⅱ PAUSE';
+    pause.setAttribute('aria-label',this.paused?'Resume game':'Pause game');
+    $('recoverButton').disabled=!this.started||this.phaseId==='COMPLETE'||this.paused;
     $('hoistTurnControls').classList.toggle('is-visible',this.started&&this.mode==='hoist'&&!this.paused&&['POSITION','HAUL'].includes(this.phaseId));
   }
   drawMap(){
