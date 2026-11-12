@@ -4,13 +4,18 @@ import {readFileSync} from 'node:fs';
 
 const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
 
-test('new articulated player preserves root API and animates joints',()=>{
-  const g=read('./geometry.js');
-  assert.match(g,/export function createPlayer\(\)/);
-  assert.match(g,/export function animatePlayer\(root,motion\)/);
-  assert.match(g,/root\.userData\.characterRig=\{visual,torso,head,arms,legs,knees\}/);
-  assert.match(g,/rig\.knees\[0\]\.rotation\.x/);
-  assert.match(g,/return root;/);
+test('hero and workers preserve player API and animate articulated joints',()=>{
+  const geometry=read('./geometry.js');
+  const avatar=read('./worker-avatar.js');
+  assert.match(geometry,/export function createPlayer\(\)/);
+  assert.match(geometry,/createWorkerAvatar\('hero'\)/);
+  assert.match(geometry,/export function createYardWorker\(\)/);
+  assert.match(geometry,/createWorkerAvatar\('npc'\)/);
+  assert.match(geometry,/export function animatePlayer\(root,motion\)/);
+  assert.match(avatar,/root\.userData\.characterRig=\{visual,torso,head,arms,legs,knees,elbows,role\}/);
+  assert.match(avatar,/rig\.knees\[0\]\.rotation\.x/);
+  assert.match(avatar,/rig\.elbows\[i\]\.rotation\.z/);
+  assert.match(geometry,/return root;/);
 });
 test('walking has camera-relative motion and existing obstacle checks',()=>{
   const main=read('./main.js');

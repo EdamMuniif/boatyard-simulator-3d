@@ -1,13 +1,13 @@
 {
   "name": "boatyard-simulator-3d",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": true,
   "type": "module",
-  "description": "Three.js boatyard simulator with reliable mobile/keyboard controls and hoist handling",
+  "description": "Three.js boatyard simulator with a reference-inspired hero and autonomous roaming workers",
   "scripts": {
     "start": "python3 -m http.server 8080",
     "test": "node --test *.test.mjs",
-    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js && node --check rigging-profile.js && node --check character-motion.js && node --check hoist-steering.js && node --check touch-controls.js"
+    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js && node --check rigging-profile.js && node --check character-motion.js && node --check hoist-steering.js && node --check touch-controls.js && node --check worker-avatar.js && node --check npc-navigation.js && node --check npc-system.js"
   },
   "license": "UNLICENSED"
 }

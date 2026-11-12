@@ -75,15 +75,6 @@ function forklift(scene,x,z,heading=0){
   for(const a of [-.65,.65])box(g,.15,.15,2.6,a,.35,2.05,PALETTE.steel);
   box(g,2.0,3.6,.25,0,1.8,1.73,PALETTE.dark);
 }
-function worker(scene,x,z,hiViz='#f6b44e'){
-  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
-  const uniform=new THREE.MeshStandardMaterial({color:hiViz});
-  box(g,.55,.95,.36,0,1.22,0,uniform);
-  cylinder(g,.19,.2,.27,0,1.88,0,PALETTE.golden);
-  cylinder(g,.31,.31,.15,0,2.09,0,PALETTE.safety);
-  for(const px of [-.15,.15])box(g,.19,.75,.25,px,.43,0,PALETTE.dark);
-  for(const px of [-.38,.38])box(g,.13,.77,.18,px,1.2,0,uniform);
-}
 function stackedCargo(scene,x,z){
   const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
   for(let j=0;j<2;j++)for(let i=0;i<3;i++){
@@ -156,7 +147,7 @@ export function createWorld(){
   for(const o of WORKSHOPS)workshop(scene,o.x,o.z,o.w,o.d,o.h,o.name);
   for(const o of CARGO_STACKS)stackedCargo(scene,o.x,o.z);
   for(const o of FORKLIFTS)forklift(scene,o.x,o.z,o.heading);
-  worker(scene,-30,60);worker(scene,49,103);worker(scene,-21,119,'#f3d756');worker(scene,28,79);
+  // Autonomous worker characters are created/updated by npc-system.js.
   pierBollards(scene);
   // Rubber fenders and guide stripes visually define the lifting basin.
   for(const z of [-5,4,13,22])for(const x of [-10.8,10.8]){

@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.3.5
+# Boatyard Simulator 3D — Prototype v0.3.6
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -70,6 +70,9 @@ boatyard-simulator-3d/
 ├─ collision.js        # Shared colliders and swept collision tests
 ├─ rigging-profile.js  # Visual U-sling curve and lifting-block profiles
 ├─ character-motion.js # Grounded player controller and procedural gait
+├─ worker-avatar.js    # Hero/NPC blue coverall models and jointed animation
+├─ npc-navigation.js   # Safe pedestrian routing and walkable ground tests
+├─ npc-system.js       # Autonomous yard-worker runtime and obstacle avoidance
 ├─ touch-controls.js   # Pointer-safe touch controls and analog joystick
 ├─ hoist-steering.js   # Collision-checked hoist turning / low-speed pivot
 ├─ rules.test.mjs      # Existing mission-rule tests
@@ -82,6 +85,17 @@ boatyard-simulator-3d/
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
+
+## v0.3.6 — Hero appearance and autonomous boatyard workers
+
+- **Playable hero:** a procedural, articulated Three.js character based on the first supplied illustration: white hardhat, royal-blue coveralls with chest and cargo pockets, dark beard, brown work boots and a hands-on-hips idle pose. Walking uses the existing character acceleration, corrected joystick direction, gravity and jointed limb motion.
+- **Autonomous workers:** the second illustration informs their blue hardhats, blue coveralls, reflective bands and brown work boots. Three workers roam on typical touch devices, and five on desktop, to limit GPU costs.
+- **Independent movement:** workers choose destinations in side-yard areas, calculate routes around workshop, cargo and forklift footprints, pause at destinations, then walk elsewhere. They avoid the central moving-hoist corridor, water, nearby pedestrians and moving machinery.
+- **Architecture:** `worker-avatar.js` builds shared-geometry lightweight 3D rigged characters; `npc-navigation.js` owns pure testable walkable pathfinding; `npc-system.js` updates only ambient NPC visuals. The existing `createPlayer()` / `animatePlayer()` API remains supported.
+- Removed the four old static worker figures so they are not duplicated. NPC movement pauses when the game is paused and does not modify vessel/hoist rules or mission checkpoints.
+- The supplied illustrations are **visual references**. Procedural geometry cannot reproduce the illustrated faces and fabrics exactly; a future artist-made and properly rigged GLB model would provide higher fidelity.
+
+**Review gate:** Test all worker routes, walking joints, camera views, obstacle avoidance, player interactions, hoist clearance, mobile FPS, stage recovery, and the full ferry-to-Bay-03 mission before merging.
 
 ## v0.3.5 — Fix reversed player left/right movement
 
