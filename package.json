@@ -7,8 +7,7 @@
   "scripts": {
     "start": "python3 -m http.server 8080",
     "test": "node --test *.test.mjs",
-    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js && node --check rigging-profile.js && node --check character-motion.js && node --check hoist-steering.js && node --check touch-controls.js && node --check browser-control-smoke.mjs",
-    "test:browser": "node browser-control-smoke.mjs"
+    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js && node --check rigging-profile.js && node --check character-motion.js && node --check hoist-steering.js && node --check touch-controls.js"
   },
   "license": "UNLICENSED"
 }

@@ -68,7 +68,7 @@ The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled c
 - `main.js` obtains the player's intended camera-relative yaw via `camera.getWorldDirection()`, so movement tracks actual camera orbit instead of duplicated camera constants.
 - Focus is restored to the focusable WebGL canvas when gameplay resumes, preserving Space/Enter keyboard activation for focused HUD buttons.
 - Hoist turning retains collision rejection; stationary BRAKE + steering is allowed as a fictional control convention. No claim is made about actual vessel-hoist steering mechanisms.
-- The Node suite includes joystick analog, pointer cancellation, independent hold controls and lost-capture simulations. CI additionally runs a local HTTP harness with headless Chrome and genuine DOM Pointer Events. Full Three.js WebGL gameplay is still a separate manual release gate.
+- The Node suite includes joystick analog, pointer cancellation, independent hold controls and lost-capture simulations. Live browser/device testing is still a release gate.
 
 ### v0.3.3 responsive UI
 

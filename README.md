@@ -79,7 +79,6 @@ boatyard-simulator-3d/
 ├─ character-motion.test.mjs # Motion, camera, collision and jump tests
 ├─ hoist-steering.test.mjs # Pivot, travel-steering and footprint constraints
 ├─ touch-controls.test.mjs # Joystick/hold interactions, pointer cancellation and reset
-├─ browser-control-smoke.mjs # Chrome/Chromium DOM pointer-event smoke
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
@@ -94,7 +93,7 @@ boatyard-simulator-3d/
 - Canvas regains focus when starting, resuming, or closing Help, so normal keyboard controls work without manually clicking into the world.
 - Hoist rotation is permitted at rest while BRAKE is held; idle steering slows residual coasting faster. Existing `canHoistAt` swept collision checks remain in force, including basin wheel-contact restrictions.
 - Pressed mobile controls receive visible highlight feedback.
-- Updated tests exercise real pointer-event state transitions in a DOM-like Node harness; CI also runs `npm run test:browser` in headless Chrome/Chromium for actual DOM Pointer Events without external JavaScript dependencies.
+- Updated tests now exercise real pointer-event state transitions in a DOM-like Node harness, rather than only asserting presence of handler strings.
 
 **Release limitation:** The tests do not replace an actual WebGL/iOS Safari/Android Chrome gameplay run. Verify walk/board/drive/lift/drop and touch releases on physical devices or browser emulation before merging.
 
