@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.3.3
+# Boatyard Simulator 3D — Prototype v0.3.4
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -70,6 +70,7 @@ boatyard-simulator-3d/
 ├─ collision.js        # Shared colliders and swept collision tests
 ├─ rigging-profile.js  # Visual U-sling curve and lifting-block profiles
 ├─ character-motion.js # Grounded player controller and procedural gait
+├─ touch-controls.js   # Pointer-safe touch controls and analog joystick
 ├─ hoist-steering.js   # Collision-checked hoist turning / low-speed pivot
 ├─ rules.test.mjs      # Existing mission-rule tests
 ├─ collision.test.mjs  # Terrain, obstacle and sweep tests
@@ -77,9 +78,24 @@ boatyard-simulator-3d/
 ├─ rigging-profile.test.mjs  # Visual rigging pose/curve tests
 ├─ character-motion.test.mjs # Motion, camera, collision and jump tests
 ├─ hoist-steering.test.mjs # Pivot, travel-steering and footprint constraints
+├─ touch-controls.test.mjs # Joystick/hold interactions, pointer cancellation and reset
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
+
+## v0.3.4 — Control input reliability
+
+- Introduced `touch-controls.js` to manage joystick and hold-button pointer IDs, analog deadzones, global pointer release, and safe pointer-capture fallback.
+- Touch input releases on pause, reset, stage transition, page blur, pagehide, visibility changes and pointer cancellation. These prevent stuck throttle, raising, braking, or steering after interruptions.
+- ACTION, CAMERA, and PAUSE become enabled immediately after starting; touch controls are refreshed immediately on mission stage changes.
+- Pedestrian movement follows the **actual camera look direction** rather than hard-coded chase/overhead angles.
+- Keyboard Space still jumps/brakes during gameplay but does not intercept Space/Enter used to activate focused on-screen buttons.
+- Canvas regains focus when starting, resuming, or closing Help, so normal keyboard controls work without manually clicking into the world.
+- Hoist rotation is permitted at rest while BRAKE is held; idle steering slows residual coasting faster. Existing `canHoistAt` swept collision checks remain in force, including basin wheel-contact restrictions.
+- Pressed mobile controls receive visible highlight feedback.
+- Updated tests now exercise real pointer-event state transitions in a DOM-like Node harness, rather than only asserting presence of handler strings.
+
+**Release limitation:** The tests do not replace an actual WebGL/iOS Safari/Android Chrome gameplay run. Verify walk/board/drive/lift/drop and touch releases on physical devices or browser emulation before merging.
 
 ## v0.3.3 — Adaptive UI/UX for phones, tablets and monitors
 
