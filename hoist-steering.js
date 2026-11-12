@@ -18,7 +18,7 @@ export function proposeHoistMotion(state,input,dt){
   const throttle=clamp(Number(input.throttle)||0,-1,1);
   const seconds=Number.isFinite(dt)?clamp(dt,0,.05):0;
   const pivot=Math.abs(speed)<=HOIST_TURN.pivotMaxSpeed &&
-    Math.abs(throttle)<HOIST_TURN.throttleDeadzone && !input.brake &&
+    Math.abs(throttle)<HOIST_TURN.throttleDeadzone &&
     Math.abs(steer)>HOIST_TURN.steerDeadzone;
   const effectiveSpeed=pivot?0:speed;
   const deltaHeading=pivot?steer*HOIST_TURN.pivotRate*seconds:

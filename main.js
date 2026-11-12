@@ -5,6 +5,7 @@ import {createCharacterMotion,resetCharacterMotion,stepCharacterMotion} from './
 import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock,checkpointForPhase} from './rules.js';
 import {canWalkAt,canFerryAt,canHoistAt,sweepVehicle} from './collision.js';
 import {proposeHoistMotion,wheelSteeringTarget} from './hoist-steering.js';
+import {bindTouchControls} from './touch-controls.js';
 
 const $=id=>document.getElementById(id);
 const clamp=THREE.MathUtils.clamp;
@@ -25,11 +26,14 @@ class DockyardGame {
     this.renderer.shadowMap.enabled=true;
     this.renderer.shadowMap.type=THREE.PCFShadowMap;
     gameEl.appendChild(this.renderer.domElement);
+    this.renderer.domElement.tabIndex=0;
+    this.renderer.domElement.setAttribute('aria-label','3D game view. Use WASD to move and E to interact.');
     this.renderer.domElement.addEventListener('webglcontextlost',e=>{
       e.preventDefault();this.paused=true;this.keys={};
       showFatal('3D graphics context lost. Reload the game to recover.');
     });
     this.camera=new THREE.PerspectiveCamera(60,window.innerWidth/window.innerHeight,.2,800);
+    this.walkViewDirection=new THREE.Vector3(0,0,1);
     this.world=createWorld();
     this.scene=this.world.scene;
     this.avatar=createPlayer();this.avatar.position.set(-18,0,37);this.scene.add(this.avatar);
@@ -52,7 +56,10 @@ class DockyardGame {
   setPhase(id){
     const index=PHASES.findIndex(p=>p.id===id);
     if(index<0)throw new Error(`Unknown mission stage ${id}`);
-    this.phase=index;this.updateWaypoint();this.updateUI();
+    this.phase=index;
+    // Do not carry a pressed throttle / stick / lift key into the next vehicle.
+    if(this.touchBindings)this.clearTransientInput();
+    this.updateWaypoint();this.updateUI();
   }
   target(){
     if(this.phaseId==='BOARD_HOIST')return new THREE.Vector3(this.hoist.root.position.x-16,0,this.hoist.root.position.z);
@@ -72,7 +79,14 @@ class DockyardGame {
     $('toast').textContent=message;$('toast').classList.add('active');
     this.toastDeadline=performance.now()+duration;
   }
-  start(){this.started=true;this.paused=false;$('startScreen').classList.add('hidden');this.notify('MISSION 01 // Ferry dry-docking contract started.',2700);}
+  start(){
+    this.started=true;this.paused=false;
+    $('startScreen').classList.add('hidden');
+    this.clearTransientInput();
+    this.updateUI(); // Unlock touch buttons immediately, not after a delayed HUD tick.
+    this.renderer.domElement.focus({preventScroll:true});
+    this.notify('MISSION 01 // Ferry dry-docking contract started.',2700);
+  }
   togglePause(){
     if(!this.started||this.phaseId==='COMPLETE')return;
     this.paused=!this.paused;
@@ -80,11 +94,15 @@ class DockyardGame {
     $('pauseScreen').classList.toggle('hidden',!this.paused);
     document.body.classList.toggle('paused',this.paused);
     this.updateUI();
+    if(!this.paused)this.renderer.domElement.focus({preventScroll:true});
   }
   clearTransientInput(){
     this.keys={};
-    Object.assign(this.touch,{x:0,y:0,raise:false,lower:false,brake:false,turnLeft:false,turnRight:false});
-    $('joystickThumb').style.transform='translate(0,0)';
+    if(this.touchBindings)this.touchBindings.releaseAll();
+    else {
+      Object.assign(this.touch,{x:0,y:0,raise:false,lower:false,brake:false,turnLeft:false,turnRight:false});
+      $('joystickThumb').style.transform='translate(0,0)';
+    }
   }
   initResponsiveUI(){
     this.helpOpen=false;
@@ -134,12 +152,16 @@ class DockyardGame {
     $('helpScreen').classList.add('hidden');
     $('pauseScreen').classList.toggle('hidden',!this.paused);
     document.body.classList.toggle('paused',this.paused);
-    if(this.helpTrigger?.isConnected)this.helpTrigger.focus();
+    if(this.started&&!this.paused)this.renderer.domElement.focus({preventScroll:true});
+    else if(this.helpTrigger?.isConnected)this.helpTrigger.focus();
     this.updateUI();
   }
   createInput(){
     window.addEventListener('keydown',e=>{
-      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
+      // Preserve keyboard activation of actual buttons, especially Space.
+      const uiButton=e.target?.closest?.('button,input,textarea,select,[contenteditable="true"]');
+      if(uiButton&&(e.code==='Space'||e.code==='Enter'))return;
+      if(this.started&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
       if(this.helpOpen){
         if(e.code==='Escape'||e.code==='KeyH')this.closeHelp();
         return;
@@ -155,8 +177,14 @@ class DockyardGame {
     });
     window.addEventListener('keyup',e=>{this.keys[e.code]=false;});
     window.addEventListener('blur',()=>this.clearTransientInput());
+    window.addEventListener('pagehide',()=>this.clearTransientInput());
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)this.clearTransientInput();});
     let dragging=false,lastX=0,lastY=0;
-    this.renderer.domElement.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;this.renderer.domElement.setPointerCapture(e.pointerId);});
+    this.renderer.domElement.addEventListener('pointerdown',e=>{
+      if(this.paused||!this.started||e.pointerType==='mouse'&&e.button!==0)return;
+      dragging=true;lastX=e.clientX;lastY=e.clientY;
+      try{this.renderer.domElement.setPointerCapture?.(e.pointerId);}catch{ /* fallback release below */ }
+    });
     this.renderer.domElement.addEventListener('pointermove',e=>{
       if(!dragging)return;
       this.orbitYaw-= (e.clientX-lastX)*.005;
@@ -165,26 +193,18 @@ class DockyardGame {
     });
     this.renderer.domElement.addEventListener('pointerup',()=>dragging=false);
     this.renderer.domElement.addEventListener('pointercancel',()=>dragging=false);
+    this.renderer.domElement.addEventListener('lostpointercapture',()=>dragging=false);
+    window.addEventListener('pointerup',()=>dragging=false);
+    window.addEventListener('pointercancel',()=>dragging=false);
     this.renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();this.cameraDistance=clamp((this.cameraDistance||1)+Math.sign(e.deltaY)*.08,.6,1.6);},{passive:false});
-    const joystick=$('joystick'),thumb=$('joystickThumb');let jid=null;
-    const move=e=>{
-      if(jid!==e.pointerId)return;
-      const rect=joystick.querySelector('.joystick-base').getBoundingClientRect();
-      const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
-      const nx=clamp((e.clientX-cx)/(rect.width*.35),-1,1);
-      const ny=clamp((e.clientY-cy)/(rect.height*.35),-1,1);
-      const mag=Math.max(1,Math.hypot(nx,ny));this.touch.x=nx/mag;this.touch.y=ny/mag;
-      thumb.style.transform=`translate(${this.touch.x*30}px,${this.touch.y*30}px)`;
-    };
-    joystick.addEventListener('pointerdown',e=>{e.preventDefault();jid=e.pointerId;joystick.setPointerCapture(jid);move(e);});
-    joystick.addEventListener('pointermove',move);
-    const release=e=>{if(jid!==e.pointerId)return;jid=null;this.touch.x=0;this.touch.y=0;thumb.style.transform='translate(0,0)';};
-    joystick.addEventListener('pointerup',release);
-    joystick.addEventListener('pointercancel',release);
-    joystick.addEventListener('lostpointercapture',release);
-    const hold=(id,key)=>{const b=$(id);b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);this.touch[key]=true;});for(const name of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(name,()=>this.touch[key]=false);};
-    hold('touchRaise','raise');hold('touchLower','lower');hold('touchBrake','brake');
-    hold('touchTurnLeft','turnLeft');hold('touchTurnRight','turnRight');
+    this.touchBindings=bindTouchControls({
+      joystick:$('joystick'),thumb:$('joystickThumb'),touch:this.touch,root:window,
+      enabled:()=>this.started&&!this.paused&&this.phaseId!=='COMPLETE',
+      buttons:[
+        [$('touchRaise'),'raise'],[$('touchLower'),'lower'],[$('touchBrake'),'brake'],
+        [$('touchTurnLeft'),'turnLeft'],[$('touchTurnRight'),'turnRight']
+      ]
+    });
   }
   bindButtons(){
     $('startButton').addEventListener('click',()=>this.start());
@@ -258,11 +278,11 @@ class DockyardGame {
     if(this.ferry.visual)this.ferry.visual.rotation.set(0,0,0);
     this.liftHeight=state.liftHeight;this.attached=state.attached;
     this.hoist.setRigging(this.liftHeight,this.attached);
-    this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false,turnLeft:false,turnRight:false};
-    $('joystickThumb').style.transform='translate(0,0)';
+    this.clearTransientInput();
     this.cameraMode=0;this.orbitYaw=0;this.orbitPitch=0;
     this.paused=false;$('pauseScreen').classList.add('hidden');
     document.body.classList.remove('paused');
+    this.renderer.domElement.focus({preventScroll:true});
     this.updateWaypoint();this.updateUI();
     this.notify('CHECKPOINT RESTORED // Current mission stage restarted.',2600);
   }
@@ -276,9 +296,9 @@ class DockyardGame {
     const {hor,ver}=this.axes();
     const touchMagnitude=Math.hypot(this.touch.x,this.touch.y);
     const keyboardSprinting=!!(this.keys.ShiftLeft||this.keys.ShiftRight);
-    const cameraYaw=this.cameraMode===1?Math.PI:
-      this.cameraMode===2?Math.atan2(-21,-10)+this.orbitYaw:
-      Math.atan2(7,11)+this.orbitYaw;
+    // Read actual camera forward direction, including orbit and interpolation.
+    this.camera.getWorldDirection(this.walkViewDirection);
+    const cameraYaw=Math.atan2(this.walkViewDirection.x,this.walkViewDirection.z);
     stepCharacterMotion(this.character,{
       hor,ver,cameraYaw,
       sprint:keyboardSprinting||touchMagnitude>.92,
@@ -316,9 +336,13 @@ class DockyardGame {
     // A/D or joystick X also turn the hoist, even when stationary.
     const extraTurn=(this.touch.turnRight?1:0)-(this.touch.turnLeft?1:0);
     const steering=drivingAllowed?clamp(hor+extraTurn,-1,1):0;
-    const drag=drivingAllowed?1.25:7.0;
+    // When turning without throttle, settle residual momentum so pivot controls
+    // become responsive rather than waiting several seconds for slow coasting.
+    const turning=Math.abs(steering)>.12&&Math.abs(throttle)<.12;
+    const drag=drivingAllowed?(turning?4.5:1.25):7.0;
     this.hoistSpeed=clamp(this.hoistSpeed+throttle*4.5*dt-this.hoistSpeed*drag*dt,-4.25,5.25);
     if(this.keys.Space||this.touch.brake)this.hoistSpeed=damp(this.hoistSpeed,0,8,dt);
+    if(Math.abs(this.hoistSpeed)<.045&&Math.abs(throttle)<.12)this.hoistSpeed=0;
     const p=this.hoist.root.position;
     const oldHeading=this.hoistHeading;
     const proposed=proposeHoistMotion({

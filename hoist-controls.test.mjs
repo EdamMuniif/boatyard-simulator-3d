@@ -9,8 +9,8 @@ test('hoist button controls are wired only to hoist driving',()=>{
   assert.match(html,/id="hoistTurnControls"/);
   assert.match(html,/id="touchTurnLeft"/);
   assert.match(html,/id="touchTurnRight"/);
-  assert.match(game,/hold\('touchTurnLeft','turnLeft'\)/);
-  assert.match(game,/hold\('touchTurnRight','turnRight'\)/);
+  assert.match(game,/\[\$\('touchTurnLeft'\),'turnLeft'\]/);
+  assert.match(game,/\[\$\('touchTurnRight'\),'turnRight'\]/);
   assert.match(game,/\['POSITION','HAUL'\]\.includes\(this\.phaseId\)/);
   assert.match(game,/proposeHoistMotion\(/);
   assert.match(game,/sweepVehicle\(p,proposed,oldHeading,proposed\.heading,canHoistAt\)/);

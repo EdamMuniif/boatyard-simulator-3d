@@ -31,7 +31,7 @@ test('pivot stops with deadzone, residual speed, or throttle active',()=>{
   assert.equal(proposeHoistMotion(here,{steer:.05,throttle:0},.05).pivot,false);
   assert.equal(proposeHoistMotion({...here,speed:.5},{steer:1,throttle:0},.05).pivot,false);
   assert.equal(proposeHoistMotion(here,{steer:1,throttle:1},.05).pivot,false);
-  assert.equal(proposeHoistMotion(here,{steer:1,throttle:0,brake:true},.05).pivot,false);
+  assert.equal(proposeHoistMotion(here,{steer:1,throttle:0,brake:true},.05).pivot,true);
   assert.equal(proposeHoistMotion(here,{steer:0,throttle:0},.05).heading,0);
 });
 test('steering station angles are finite and remain bounded',()=>{

@@ -53,6 +53,6 @@ test('contextual action labels and mission-phase lift disabling are enforced',()
   assert.match(game,/\$\('touchRaise'\)\.disabled=this\.phaseId!=='LIFT'/);
   assert.match(game,/\$\('touchLower'\)\.disabled=this\.phaseId!=='LOWER'/);
   assert.match(game,/\$\('hudPause'\)\.addEventListener/);
-  assert.match(game,/hold\('touchTurnLeft','turnLeft'\)/);
-  assert.match(game,/hold\('touchTurnRight','turnRight'\)/);
+  assert.match(game,/\[\$\('touchTurnLeft'\),'turnLeft'\]/);
+  assert.match(game,/\[\$\('touchTurnRight'\),'turnRight'\]/);
 });

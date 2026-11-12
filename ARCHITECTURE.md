@@ -1,4 +1,4 @@
-# Architecture — Boatyard Simulator 3D v0.3.3
+# Architecture — Boatyard Simulator 3D v0.3.4
 
 ## Objective and boundaries
 
@@ -60,6 +60,15 @@ The single source of gameplay rule constants is `rules.js`; edit thresholds ther
 Three.js uses **Y-up**. `X` is horizontal across the shipyard; `Z` runs from the harbor toward inland. Ferry bow points +Z when piloted into the lifting basin. The initial ferry is at `(0, 0, -49)`, basin target `(0, 0, 16)`, and dry-dock target `(34, 0, 108)`. These are fictional world-units. They are **not** actual Thilafushi site coordinates.
 
 The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled cutout, each carrying one row of the travel lift's wheels in the basin scene. The vessel hull is carried and moved by an arcade transform synchronized to the hoist in the first iteration; no physical force transfer is computed.
+
+### v0.3.4 controller boundaries and reliability
+
+- `touch-controls.js` owns one active joystick pointer ID and an independent pointer ID per held control. Global fallback listeners release inputs when pointer capture fails or the finger leaves its original element.
+- `main.js` calls `releaseAll()` on pause, start, stage transition, checkpoint reset, blur, pagehide, and visibility loss. Input state remains a single stable object.
+- `main.js` obtains the player's intended camera-relative yaw via `camera.getWorldDirection()`, so movement tracks actual camera orbit instead of duplicated camera constants.
+- Focus is restored to the focusable WebGL canvas when gameplay resumes, preserving Space/Enter keyboard activation for focused HUD buttons.
+- Hoist turning retains collision rejection; stationary BRAKE + steering is allowed as a fictional control convention. No claim is made about actual vessel-hoist steering mechanisms.
+- The Node suite includes joystick analog, pointer cancellation, independent hold controls and lost-capture simulations. Live browser/device testing is still a release gate.
 
 ### v0.3.3 responsive UI
 
