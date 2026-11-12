@@ -1,4 +1,4 @@
-# Architecture — Boatyard Simulator 3D v0.3.5
+# Architecture — Boatyard Simulator 3D v0.3.6
 
 ## Objective and boundaries
 
@@ -26,7 +26,9 @@ index.html / styles.css / responsive-ui.css
       ▼
   Three.js scene graph
       ├─ world.js     ambient light, ground, water, basin, prop scenery
-      └─ geometry.js  player, ferry, travel lift, rigging, markers
+      ├─ geometry.js  player API, ferry, travel lift, rigging, markers
+      ├─ worker-avatar.js  hero and NPC articulated character meshes
+      └─ npc-system.js     ambient autonomous worker groups
 ```
 
 ### Mission state machine
@@ -60,6 +62,15 @@ The single source of gameplay rule constants is `rules.js`; edit thresholds ther
 Three.js uses **Y-up**. `X` is horizontal across the shipyard; `Z` runs from the harbor toward inland. Ferry bow points +Z when piloted into the lifting basin. The initial ferry is at `(0, 0, -49)`, basin target `(0, 0, 16)`, and dry-dock target `(34, 0, 108)`. These are fictional world-units. They are **not** actual Thilafushi site coordinates.
 
 The main yard occupies Z ≈ 32…177. Two concrete quays flank a water-filled cutout, each carrying one row of the travel lift's wheels in the basin scene. The vessel hull is carried and moved by an arcade transform synchronized to the hoist in the first iteration; no physical force transfer is computed.
+
+### v0.3.6 hero and autonomous NPCs
+
+- The user supplied two character illustration references. `worker-avatar.js` creates separate but related mesh styles using shared box, cylinder and sphere geometries: hero white helmet/plain royal-blue coveralls; workers blue helmets/reflective bands. Both reuse `characterPose()` for joint animation.
+- `geometry.js` retains backward-compatible `createPlayer()` and `animatePlayer(root,motion)` exports and exposes `createYardWorker()`. Mission input and player movement remain unchanged.
+- `npc-navigation.js` builds a static sample grid using `canWalkAt()` plus a reserved central vehicle corridor. A* searches route around workshops, static cargo and forklifts; line-of-sight checks sample all route segments to prevent cutting through corners or water.
+- `npc-system.js` spawns three actors on touch devices or five on desktop. Each independently travels between validated waypoints and idles between routes. Dynamic separation checks keep them away from the hero, other workers and the active travel lift; unresolved dynamic obstructions trigger a delayed replan. No NPC drives machinery or affects mission state.
+- NPC rendering and position updates run only during active, unpaused gameplay. Character geometries/materials are shared and low polygon count to reduce memory use. No external character texture, AI service, network connection or company brand is required.
+- This is **animated autonomous ambience**, not a full animation-state graph, robust crowd simulation or physics-grade navigation. The existing mission collision boundaries are unchanged.
 
 ### v0.3.5 camera-relative input sign convention
 

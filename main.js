@@ -6,6 +6,7 @@ import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock
 import {canWalkAt,canFerryAt,canHoistAt,sweepVehicle} from './collision.js';
 import {proposeHoistMotion,wheelSteeringTarget} from './hoist-steering.js';
 import {bindTouchControls} from './touch-controls.js';
+import {createNpcSystem} from './npc-system.js';
 
 const $=id=>document.getElementById(id);
 const clamp=THREE.MathUtils.clamp;
@@ -40,6 +41,9 @@ class DockyardGame {
     this.character=createCharacterMotion(this.avatar.position);
     this.ferry=createFerry();this.ferry.root.position.set(0,0,-49);this.scene.add(this.ferry.root);
     this.hoist=createHoist();this.hoist.root.position.set(0,0,63);this.scene.add(this.hoist.root);
+    this.npcWorkers=createNpcSystem(this.scene,{
+      lowPower:window.matchMedia?.('(pointer: coarse)').matches??false
+    });
     this.camera.position.set(-25,13,15);
     this.phase=0;this.mode='walk';this.started=false;this.paused=false;this.cameraMode=0;
     this.ferrySpeed=0;this.ferryHeading=0;this.hoistSpeed=0;this.hoistHeading=0;
@@ -407,6 +411,10 @@ class DockyardGame {
       if(this.mode==='walk')this.advanceWalk(dt);
       else if(this.mode==='ferry')this.advanceFerry(dt);
       else if(this.mode==='hoist')this.advanceHoist(dt);
+      this.npcWorkers.update(dt,{
+        player:this.mode==='walk'?this.avatar.position:null,
+        hoist:this.hoist.root
+      });
     }
     this.updateCamera(dt);
     if(performance.now()>this.toastDeadline)$('toast').classList.remove('active');
