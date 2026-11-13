@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {createWorkerAvatar,animateWorkerAvatar} from './worker-avatar.js';
+import {mergeRigidChildren} from './static-merge.js';
 import {SLING_STATIONS,SLING_SEGMENTS,SLING_HALF_SPAN,SLING_WEB_WIDTH,rigPose,slingPoint} from './rigging-profile.js';
 
 const mat = (color, roughness = 0.78, metalness = 0.05) => new THREE.MeshStandardMaterial({color, roughness, metalness});
@@ -124,6 +125,7 @@ export function createHoist() {
     }));
     web.name='Suspended fabric sling '+(station+1);
     web.castShadow=false;web.receiveShadow=true;web.frustumCulled=false;
+    web.userData.dynamic=true; // geometry rewritten by setRigging()
     root.add(web);
     const blocks=[],wires=[];
     for(const side of [-1,1]){
@@ -172,6 +174,7 @@ export function createHoist() {
     }
   }
   setRigging(0,false);
+  mergeRigidChildren(root);
   return {root,wheels,setRigging};
 }
 
@@ -233,6 +236,7 @@ export function createFerry(){
   const visual=new THREE.Group();visual.name='Ferry visual shell';
   while(root.children.length)visual.add(root.children[0]);
   root.add(visual);
+  mergeRigidChildren(visual);
   return {root,visual};
 }
 
@@ -262,4 +266,27 @@ export function createWaypoint(label, color='#f3c278'){
   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:textTexture(label,640,90,'#fff3d6','#092438',38),depthTest:false}));
   sprite.position.y=6.8;sprite.scale.set(8.3,1.24,1);group.add(sprite);
   return {group,ring,pointer};
+}
+
+// Lettered map location marker (concept-art style): glowing ring with a letter
+// above a dark label plate. Rendered on top so it reads as a HUD blip.
+export function createLocationMarker(letter,label){
+  const c=document.createElement('canvas');c.width=512;c.height=256;
+  const ctx=c.getContext('2d');
+  ctx.shadowColor='rgba(80,220,235,.9)';ctx.shadowBlur=22;
+  ctx.beginPath();ctx.arc(256,72,54,0,Math.PI*2);ctx.fillStyle='rgba(8,24,34,.88)';ctx.fill();
+  ctx.lineWidth=7;ctx.strokeStyle='#5fe0ee';ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(256,72,42,0,Math.PI*2);ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.75)';ctx.stroke();
+  ctx.fillStyle='#ffffff';ctx.font='900 56px Arial, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(letter,256,75);
+  ctx.font='800 34px Arial, sans-serif';
+  const w=Math.min(500,ctx.measureText(label).width+44);
+  ctx.fillStyle='rgba(12,22,30,.86)';ctx.fillRect(256-w/2,150,w,58);
+  ctx.fillStyle='#e9b35f';ctx.fillRect(256+w/2-6,150,6,58);
+  ctx.fillStyle='#f3f6f7';ctx.fillText(label,256,181);
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
+  sprite.scale.set(12,6,1);sprite.renderOrder=20;sprite.name=`Location ${letter}`;
+  return sprite;
 }

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import {createWorld} from './world.js';
-import {createHoist,createFerry,createPlayer,animatePlayer,createWaypoint} from './geometry.js';
+import {createHoist,createFerry,createPlayer,animatePlayer,createWaypoint,createLocationMarker} from './geometry.js';
 import {createCharacterMotion,resetCharacterMotion,stepCharacterMotion} from './character-motion.js';
-import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock,checkpointForPhase} from './rules.js';
-import {canWalkAt,canFerryAt,canHoistAt,sweepVehicle} from './collision.js';
+import {PHASES,WAYPOINTS,MISSION,ECONOMY,distance2D,canBerthFerry,canAttachSling,canDock,checkpointForPhase,settleContract,isImpact} from './rules.js';
+import {canWalkAt,canFerryAt,canHoistAt,sweepVehicle,WORKSHOPS,HARDSTAND_VESSELS,MOORED_VESSELS,vesselFootprint} from './collision.js';
 import {proposeHoistMotion,wheelSteeringTarget} from './hoist-steering.js';
 import {bindTouchControls} from './touch-controls.js';
 import {createNpcSystem} from './npc-system.js';
@@ -49,6 +49,12 @@ class DockyardGame {
     this.ferrySpeed=0;this.ferryHeading=0;this.hoistSpeed=0;this.hoistHeading=0;
     this.lastHoistSpeed=0;
     this.liftHeight=0;this.attached=false;
+    this.funds=ECONOMY.startingFunds;this.contacts=0;this.inContact=false;
+    // Location E rides on the travel lift above its top beam.
+    this.hoistMarker=createLocationMarker('E','TRAVEL LIFT HOIST');
+    this.hoistMarker.position.set(0,25,0);this.hoist.root.add(this.hoistMarker);
+    this.locations=[...this.world.locations,{letter:'E',label:'TRAVEL LIFT HOIST',marker:this.hoistMarker,follow:this.hoist.root}];
+    this.buildChecklist();
     this.keys={};this.touch={x:0,y:0,raise:false,lower:false,brake:false,turnLeft:false,turnRight:false};
     this.orbitYaw=.0;this.orbitPitch=0;this.frameTime=performance.now();this.uiTime=0;this.toastDeadline=0;
     this.prevTarget=new THREE.Vector3();
@@ -57,6 +63,20 @@ class DockyardGame {
     this.animate=this.animate.bind(this);requestAnimationFrame(this.animate);
   }
   get phaseId(){return PHASES[this.phase].id;}
+  buildChecklist(){
+    const list=$('missionChecklist');list.textContent='';
+    this.checklistItems=PHASES.filter(p=>p.id!=='COMPLETE').map(p=>{
+      const li=document.createElement('li');li.textContent=p.name;list.appendChild(li);return li;
+    });
+  }
+  // Count one contact per collision event, and only when it is a real impact.
+  registerContact(speed,threshold,message){
+    if(!this.inContact&&isImpact(speed,threshold)){
+      this.contacts++;
+      this.notify(`${message} // -$${ECONOMY.contactPenalty.toLocaleString('en-US')} DAMAGE`,1800);
+    }else this.notifyLimited(message);
+    this.inContact=true;
+  }
   setPhase(id){
     const index=PHASES.findIndex(p=>p.id===id);
     if(index<0)throw new Error(`Unknown mission stage ${id}`);
@@ -324,9 +344,11 @@ class DockyardGame {
     const oldHeading=this.ferry.root.rotation.y;
     if(sweepVehicle(p,{x:nx,z:nz},oldHeading,this.ferryHeading,canFerryAt)){
       p.x=nx;p.z=nz;this.ferry.root.rotation.y=this.ferryHeading;
+      this.inContact=false;
     }else{
+      const impactSpeed=this.ferrySpeed;
       this.ferryHeading=oldHeading;this.ferrySpeed=0;
-      this.notifyLimited('SHORE CONTACT // Reposition the ferry.');
+      this.registerContact(impactSpeed,ECONOMY.ferryImpactSpeed,'SHORE CONTACT');
     }
     // Gentle water motion, game stylization only.
     this.ferry.root.position.y=.07+Math.sin(performance.now()*.0013)*.045;
@@ -355,9 +377,12 @@ class DockyardGame {
     if(sweepVehicle(p,proposed,oldHeading,proposed.heading,canHoistAt)){
       p.x=proposed.x;p.z=proposed.z;this.hoistHeading=proposed.heading;
       if(proposed.pivot)this.hoistSpeed=0;
+      this.inContact=false;
     }else{
+      // Pivoting into a limit is a blocked turn, not a collision.
+      const impactSpeed=proposed.pivot?0:this.hoistSpeed;
       this.hoistSpeed=0;
-      this.notifyLimited('YARD LIMIT // Cannot turn through obstacles or over water.');
+      this.registerContact(impactSpeed,ECONOMY.hoistImpactSpeed,'YARD LIMIT');
     }
     const appliedHeading=this.hoistHeading-oldHeading;
     this.hoist.root.rotation.y=this.hoistHeading;
@@ -397,12 +422,24 @@ class DockyardGame {
       this.ferry.root.position.set(MISSION.dock.x,MISSION.dockPlacementHeight,MISSION.dock.z);
       this.ferry.root.rotation.y=0;
       this.hoist.setRigging(0,false);
-      this.setPhase('COMPLETE');$('score').textContent='01';
+      this.setPhase('COMPLETE');
+      const result=settleContract(this.contacts);
+      this.funds+=result.net;
+      const money=n=>`$${Math.abs(n).toLocaleString('en-US')}`;
+      $('payoutAmount').textContent=`+${money(result.payout)}`;
+      $('contactCount').textContent=`x${result.contacts}`;
+      $('penaltyAmount').textContent=`-${money(result.penalties)}`;
+      $('balanceAmount').textContent=money(this.funds);
       $('completeScreen').classList.remove('hidden');
+      this.updateUI();
     }
   }
   update(dt){
     this.world.water.material.uniforms.uTime.value+=dt;
+    this.world.sky.material.uniforms.uTime.value+=dt;
+    this.world.sky.position.copy(this.camera.position);
+    // The ocean shader works in world space, so the plane can simply follow the camera.
+    this.world.water.position.x=this.camera.position.x;this.world.water.position.z=this.camera.position.z;
     const t=performance.now()*.001;
     this.world.waypoint.pointer.rotation.y+=dt*.7;
     this.world.waypoint.pointer.position.y=4.6+Math.sin(t*2)*.3;
@@ -417,6 +454,7 @@ class DockyardGame {
       });
     }
     this.updateCamera(dt);
+    this.updateLocationMarkers();
     if(performance.now()>this.toastDeadline)$('toast').classList.remove('active');
     if(performance.now()-this.uiTime>90){this.updateUI();this.drawMap();this.uiTime=performance.now();}
   }
@@ -438,7 +476,9 @@ class DockyardGame {
     else{
       const dist=this.cameraDistance||1;
       const base=this.mode==='hoist'?new THREE.Vector3(-17,25,-46):this.mode==='ferry'?new THREE.Vector3(-10,12.5,-23):new THREE.Vector3(-7,6.2,-11);
-      base.multiplyScalar(dist);base.y+=this.orbitPitch*15;offset=base.applyAxisAngle(tmpY,heading+this.orbitYaw);
+      // Portrait phones see far less to the sides, so pull the chase camera back.
+      const portrait=this.camera.aspect<.8?(this.mode==='walk'?1.2:1.55):1;
+      base.multiplyScalar(dist*portrait);base.y+=this.orbitPitch*15;offset=base.applyAxisAngle(tmpY,heading+this.orbitYaw);
     }
     const desired=focus.add(offset);
     const alpha=1-Math.exp(-dt*3.9);
@@ -464,6 +504,14 @@ class DockyardGame {
     brake.firstChild.textContent=this.mode==='walk'?'↑':'■';
     brake.querySelector('span').textContent=this.mode==='walk'?'JUMP':'BRAKE';
     $('waypointName').textContent=phase.name;
+    $('money').textContent=`$${this.funds.toLocaleString('en-US')}`;
+    $('workers').textContent=String(this.npcWorkers.actors.length);
+    $('materials').textContent=`${ECONOMY.materialsPercent}%`;
+    this.checklistItems.forEach((li,i)=>{
+      li.classList.toggle('done',i<this.phase);
+      li.classList.toggle('current',i===this.phase);
+    });
+    $('mapZoom').textContent=`${this.radarRange()} m`;
     const action=$('touchAction');
     const touchLabels={DISPATCH:'BOARD',SAIL:'SECURE',BOARD_HOIST:'ENTER',POSITION:'ATTACH'};
     const canAct=Object.prototype.hasOwnProperty.call(touchLabels,this.phaseId);
@@ -481,30 +529,93 @@ class DockyardGame {
     $('recoverButton').disabled=!this.started||this.phaseId==='COMPLETE'||this.paused;
     $('hoistTurnControls').classList.toggle('is-visible',this.started&&this.mode==='hoist'&&!this.paused&&['POSITION','HAUL'].includes(this.phaseId));
   }
-  drawMap(){
-    const cvs=$('minimap'),ctx=cvs.getContext('2d');const W=cvs.width,H=cvs.height;
-    const xm=x=>(x+77)/154*W,zm=z=>H-(z+68)/243*H;
-    ctx.clearRect(0,0,W,H);ctx.fillStyle='#0a4254';ctx.fillRect(0,0,W,H);
-    ctx.strokeStyle='#285c6d';ctx.lineWidth=1;
-    for(let i=0;i<10;i++){const x=i*25;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();ctx.beginPath();ctx.moveTo(0,x);ctx.lineTo(W,x);ctx.stroke();}
-    ctx.fillStyle='#65716f';ctx.fillRect(xm(-75),zm(177),xm(75)-xm(-75),zm(32)-zm(177));
-    ctx.fillRect(xm(-75),zm(32),xm(65)-xm(0),zm(-11)-zm(32));
-    ctx.fillRect(xm(10),zm(32),xm(65)-xm(0),zm(-11)-zm(32));
-    // Buildings and designated dry-dock bay.
-    ctx.fillStyle='#344b54';
-    for(const [x,z,w,d] of [[-49,101,29,39],[56,61,30,33],[-49,151,32,23],[54,151,33,27]]){
-      ctx.fillRect(xm(x-w/2),zm(z+d/2),w/154*W,d/243*H);
+  updateLocationMarkers(){
+    const cam=this.camera.position,overhead=this.cameraMode===1;
+    this.tmpMarker??=new THREE.Vector3();
+    for(const loc of this.locations){
+      const w=loc.marker.getWorldPosition(this.tmpMarker);
+      const d=Math.hypot(w.x-cam.x,w.z-cam.z);
+      // Fade out when the camera is right on top of a marker so it never blocks the view.
+      loc.marker.material.opacity=overhead?.9:clamp((d-14)/16,0,1);
+      // Grow with distance so far-off markers stay readable without swamping close views.
+      const size=clamp(d*.11,9,24);loc.marker.scale.set(size,size/2,1);
+      loc.marker.visible=loc.marker.material.opacity>.02;
     }
-    ctx.strokeStyle='#d8bb7d';ctx.lineWidth=2;
-    ctx.strokeRect(xm(20),zm(120),28/154*W,24/243*H);
-    ctx.strokeStyle='#77b9cb';ctx.lineWidth=2;
-    ctx.strokeRect(xm(-10),zm(32),20/154*W,43/243*H);
-    function dot(p,color,r){ctx.beginPath();ctx.arc(clamp(xm(p.x),r,W-r),clamp(zm(p.z),r,H-r),r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#061827';ctx.lineWidth=1.8;ctx.stroke();}
-    dot(this.ferry.root.position,'#fff5dc',5);dot(this.hoist.root.position,'#288dc3',5);
+  }
+  radarRange(){return this.mode==='walk'?80:150;}
+  drawMap(){
+    // Circular radar, rotated so the camera's view direction points up.
+    const cvs=$('minimap'),ctx=cvs.getContext('2d');const W=cvs.width,H=cvs.height,cx=W/2,cy=H/2,R=W/2-4;
     const pos=this.mode==='walk'?this.avatar.position:this.mode==='ferry'?this.ferry.root.position:this.hoist.root.position;
-    const t=this.target();ctx.strokeStyle='#e3c380bd';ctx.lineWidth=1;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(xm(pos.x),zm(pos.z));ctx.lineTo(xm(t.x),zm(t.z));ctx.stroke();ctx.setLineDash([]);
-    dot(t,'#ffd084',5.3);dot(pos,'#ffffff',4.4);
-    ctx.fillStyle='#ecfaff';ctx.font='bold 12px Arial';ctx.fillText('N',W-17,16);
+    this.camera.getWorldDirection(this.walkViewDirection);
+    const yaw=Math.atan2(this.walkViewDirection.x,this.walkViewDirection.z),sy=Math.sin(yaw),cyw=Math.cos(yaw);
+    const scale=R/this.radarRange();
+    // Camera right is world (-cos yaw, sin yaw); forward is (sin yaw, cos yaw).
+    const toRadar=(x,z)=>{const dx=x-pos.x,dz=z-pos.z;return [cx+(-dx*cyw+dz*sy)*scale,cy-(dx*sy+dz*cyw)*scale];};
+    const rect=r=>{
+      const pts=[[r.x-r.w/2,r.z-r.d/2],[r.x+r.w/2,r.z-r.d/2],[r.x+r.w/2,r.z+r.d/2],[r.x-r.w/2,r.z+r.d/2]].map(([x,z])=>toRadar(x,z));
+      ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<4;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.closePath();
+    };
+    ctx.clearRect(0,0,W,H);ctx.save();
+    ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.clip();
+    const sea=ctx.createRadialGradient(cx,cy,10,cx,cy,R);sea.addColorStop(0,'#0f5d6b');sea.addColorStop(1,'#08313f');
+    ctx.fillStyle=sea;ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#8a8f86';
+    for(const r of [{x:0,z:104.5,w:150,d:145},{x:-42.5,z:10.5,w:65,d:43},{x:42.5,z:10.5,w:65,d:43}]){rect(r);ctx.fill();}
+    ctx.fillStyle='#4a5c62';for(const r of WORKSHOPS){rect(r);ctx.fill();}
+    ctx.fillStyle='#c7c2b4';for(const v of [...HARDSTAND_VESSELS,...MOORED_VESSELS]){rect(vesselFootprint(v));ctx.fill();}
+    ctx.strokeStyle='#e7c27d';ctx.lineWidth=2;rect({x:MISSION.dock.x,z:MISSION.dock.z,w:24,d:24});ctx.stroke();
+    // Rotating sweep, as on a marine radar.
+    if(ctx.createConicGradient){
+      const g=ctx.createConicGradient((performance.now()*.0012)%(Math.PI*2),cx,cy);
+      g.addColorStop(0,'rgba(120,255,170,.30)');g.addColorStop(.12,'rgba(120,255,170,0)');g.addColorStop(1,'rgba(120,255,170,0)');
+      ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    }
+    ctx.strokeStyle='rgba(150,255,190,.18)';ctx.lineWidth=1;
+    for(const f of [.33,.66]){ctx.beginPath();ctx.arc(cx,cy,R*f,0,Math.PI*2);ctx.stroke();}
+    ctx.restore();
+    // Clamp off-range blips to the rim so the player always knows the direction.
+    const edge=(x,z,inset)=>{
+      let [px,py]=toRadar(x,z);const dx=px-cx,dy=py-cy,d=Math.hypot(dx,dy),max=R-inset;
+      if(d>max){px=cx+dx/d*max;py=cy+dy/d*max;}
+      return [px,py,d>max];
+    };
+    for(const a of this.npcWorkers.actors){
+      const [px,py,out]=edge(a.motion.x,a.motion.z,4);if(out)continue;
+      ctx.beginPath();ctx.arc(px,py,2.4,0,Math.PI*2);ctx.fillStyle='#7fe3f0';ctx.fill();
+    }
+    const blip=(p,color,size)=>{
+      const [px,py]=edge(p.x,p.z,size+2);
+      ctx.fillStyle=color;ctx.strokeStyle='#061827';ctx.lineWidth=1.5;
+      ctx.fillRect(px-size,py-size,size*2,size*2);ctx.strokeRect(px-size,py-size,size*2,size*2);
+    };
+    if(this.mode!=='ferry')blip(this.ferry.root.position,'#f5f1e4',4);
+    if(this.mode!=='hoist')blip(this.hoist.root.position,'#2f9be0',4.5);
+    ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const loc of this.locations){
+      if(loc.follow&&this.mode==='hoist')continue;
+      const lp=loc.follow?loc.follow.position:loc;
+      const [px,py]=edge(lp.x,lp.z,9);
+      ctx.beginPath();ctx.arc(px,py,8,0,Math.PI*2);ctx.fillStyle='rgba(8,24,34,.92)';ctx.fill();
+      ctx.strokeStyle='#5fe0ee';ctx.lineWidth=1.6;ctx.stroke();ctx.fillStyle='#fff';ctx.fillText(loc.letter,px,py+.5);
+    }
+    if(this.phaseId!=='COMPLETE'){
+      const t=this.target();const [tx,ty,out]=edge(t.x,t.z,8);
+      ctx.save();ctx.translate(tx,ty);ctx.rotate(out?Math.atan2(ty-cy,tx-cx)+Math.PI/2:Math.PI/4);
+      ctx.fillStyle='#ffc861';ctx.strokeStyle='#061827';ctx.lineWidth=1.6;ctx.beginPath();
+      if(out){ctx.moveTo(0,-8);ctx.lineTo(6,5);ctx.lineTo(-6,5);}else ctx.rect(-5,-5,10,10);
+      ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    }
+    // Player arrow: heading relative to the camera direction.
+    const heading=this.mode==='walk'?this.avatar.rotation.y:this.mode==='ferry'?this.ferryHeading:this.hoistHeading;
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(yaw-heading);
+    ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6.5,7);ctx.lineTo(0,3.5);ctx.lineTo(-6.5,7);ctx.closePath();
+    ctx.fillStyle='#ffffff';ctx.fill();ctx.strokeStyle='#061827';ctx.lineWidth=1.6;ctx.stroke();ctx.restore();
+    // North marker on the rim (world +z is north).
+    const nx=cx+sy*(R-9),ny=cy-cyw*(R-9);
+    ctx.beginPath();ctx.arc(nx,ny,8,0,Math.PI*2);ctx.fillStyle='#061827';ctx.fill();
+    ctx.fillStyle='#ffd27a';ctx.fillText('N',nx,ny+.5);
+    ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.strokeStyle='rgba(205,240,250,.55)';ctx.lineWidth=2;ctx.stroke();
   }
   onResize(){this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,this.maxPixelRatio));this.renderer.setSize(innerWidth,innerHeight);}
   animate(now){

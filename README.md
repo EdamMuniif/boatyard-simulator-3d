@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.3.6
+# Boatyard Simulator 3D — Prototype v0.4.0
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -38,7 +38,7 @@ On Windows, `py -m http.server 8080` is an alternative. If Python is not install
 | Pause / resume | P or Escape | PAUSE / RESUME button |
 | Open game controls | H | HELP button |
 | Expand or collapse mission instructions | MORE / LESS | MORE / LESS |
-| Show or hide mini-map | MAP button | MAP button |
+| Show or hide radar | MAP button | MAP button |
 | Recover current mission stage | T or mission panel RECOVER button | RECOVER button |
 | Restart | Replay button after completion; pause menu | Replay button after completion |
 
@@ -54,7 +54,9 @@ Three camera modes cycle through *chase*, *tactical overhead*, and *side inspect
 6. Drive forward and steer to **Dry Dock Bay 03**. Stop within the gold target ring.
 7. Hold `F` to lower the ferry onto the support positions and complete the contract.
 
-The interface shows the next objective and distance to the waypoint. A minimap tracks the ferry, hoist, player and destination. Use the tactical camera when aligning.
+The mission panel shows the current objective, a checklist of every stage and the distance to the waypoint. The circular radar turns with the camera and shows the target (gold; it sits on the rim when out of range), the ferry, the hoist, the workers and the A–E yard locations. Use the tactical camera when aligning.
+
+**Money:** the contract pays **$15,000**. Driving the ferry or the travel lift into something at speed costs **$500 per impact**. Creeping into a wall or pivoting against a limit is free. The completion screen shows the payout, the damage and your new bank balance. MATERIALS in the status bar is a fixed display value until a supply system is added.
 
 ## Project structure
 
@@ -74,6 +76,8 @@ boatyard-simulator-3d/
 ├─ npc-navigation.js   # Safe pedestrian routing and walkable ground tests
 ├─ npc-system.js       # Autonomous yard-worker runtime and obstacle avoidance
 ├─ touch-controls.js   # Pointer-safe touch controls and analog joystick
+├─ vessels.js          # Procedural yachts, work boats, ferries, barges, dhow and sailboats
+├─ static-merge.js     # Merges static scenery and rigid model parts to cut draw calls
 ├─ hoist-steering.js   # Collision-checked hoist turning / low-speed pivot
 ├─ rules.test.mjs      # Existing mission-rule tests
 ├─ collision.test.mjs  # Terrain, obstacle and sweep tests
@@ -85,6 +89,20 @@ boatyard-simulator-3d/
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
+
+## v0.4.0 — Open-world yard look and HUD
+
+Based on the concept art (A–E yard locations, status strip, mission checklist, radar) and the reference drone photo of the yard.
+
+- **Busy yard:** yachts on keel blocks and jack stands on the west quay (C, yacht refitting). Coloured work boats, a ferry, a landing craft and a barge on the east quay (D, vessel repairs). A rusty barge and a tug are moored offshore, and yachts, sailboats and a ferry lie at the anchorage (A). There are also palm trees, gable roofs in blue, grey and teal, sandy ground patches, a scrap pile and an excavator. All hull and stand footprints are solid for the player, and the moored vessels are solid for the ferry.
+- **Tropical look:** a gradient sky dome with sun glow and drifting clouds, turquoise shallows fading to deep blue water, foam along the quay edges, sun glint, and warmer light.
+- **HUD:** a MONEY / WORKERS / MATERIALS / STATUS strip, a mission checklist that ticks off each stage, a circular radar that turns with the camera (with a sweep), and lettered A–E markers in the world and on the radar. Location E rides on the travel lift.
+- **Contract economy:** a payout and per-impact damage, settled on the completion screen.
+- **Performance:** static scenery merges into about 60 meshes, and characters, the hoist and the ferry merge per rigid part. In testing, draw calls per frame fell from about 1,500 to about 400 even with all the new scenery.
+- **Phones:** the chase camera pulls back in portrait so the travel lift no longer fills the screen.
+- The speed panel header no longer runs into its unit label.
+
+This version uses the open-world genre conventions (radar, money HUD, map blips). It does not copy any specific game's logo, fonts or HUD.
 
 ## v0.3.6 — Hero appearance and autonomous boatyard workers
 
