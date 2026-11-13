@@ -76,3 +76,18 @@ test('frame time substepping keeps trajectory approximately stable',()=>{
   const b=tick(createCharacterMotion(),{hor:0,ver:1,cameraYaw:0},.8,()=>true,1/30);
   near(a.z,b.z,.06);
 });
+
+test('idle hands-on-hips pose puts each hand on the hip at the waistline',async()=>{
+  const {idleHandPosition}=await import('./character-motion.js');
+  for(const side of [-1,1]){
+    const {elbow,hand}=idleHandPosition(side);
+    // Torso half-width is 0.39 and the outer hip edge 0.38; the 0.13 hand
+    // sphere should rest against that side, not float beyond it.
+    assert.ok(Math.abs(hand.x)>.36&&Math.abs(hand.x)<.48,`hand x ${hand.x}`);
+    // Waist/belt band is centred at y=-0.12 in torso space.
+    assert.ok(hand.y>-.2&&hand.y<.02,`hand y ${hand.y}`);
+    // Elbows flare outward past the shoulders, as in both references.
+    assert.ok(Math.abs(elbow.x)>.6,`elbow x ${elbow.x}`);
+    assert.equal(Math.sign(hand.x),side);
+  }
+});
