@@ -101,6 +101,17 @@ export function stepCharacterMotion(state,input,dt,canStand=()=>true){
   return state;
 }
 
+// Idle "hands on hips" pose from the hero / worker references, in torso-local
+// units of worker-avatar.js. idleHandPosition() is the forward kinematics the
+// avatar's rotations produce, so tests can verify the hand lands on the hip.
+export const ARM_RIG=Object.freeze({shoulderX:.49,shoulderY:.59,upperArm:.42,forearm:.39});
+export const IDLE_ARM_POSE=Object.freeze({shoulderOut:.49,elbowBend:1.19});
+export function idleHandPosition(side,pose=IDLE_ARM_POSE,rig=ARM_RIG){
+  const a=side*pose.shoulderOut,b=a-side*pose.elbowBend;
+  const ex=side*rig.shoulderX+rig.upperArm*Math.sin(a),ey=rig.shoulderY-rig.upperArm*Math.cos(a);
+  return {elbow:{x:ex,y:ey},hand:{x:ex+rig.forearm*Math.sin(b),y:ey-rig.forearm*Math.cos(b)}};
+}
+
 export function characterPose(state){
   const amount=clamp(state.speed/CHARACTER_TUNING.runSpeed,0,1);
   const weight=clamp(state.speed/.65,0,1);

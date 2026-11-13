@@ -9,7 +9,8 @@ test('first reference defines white-helmet hero and second defines blue-helmet r
   assert.match(avatar,/const helmet=npc\?M\.blueHat:M\.white/);
   assert.match(avatar,/if\(npc\)\{/);
   assert.match(avatar,/Reflective bands used only on autonomous worker/);
-  assert.match(avatar,/M\.leather/);
+  assert.match(avatar,/M\.boot/);
+  assert.match(avatar,/M\.belt/);
   assert.match(avatar,/M\.hair/);
   assert.match(avatar,/rig\.arms\[i\]\.rotation\.z/);
   assert.doesNotMatch(avatar,/\bMTCC\b|EDENTECHNOLOGY/i);
