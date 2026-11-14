@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {mergeRigidChildren} from './static-merge.js';
+import {loadHumanBase,humanBaseReady,createHuman} from './human-avatar.js';
 import {characterPose,ARM_RIG,IDLE_ARM_POSE} from './character-motion.js';
 
 // Stylized 3D interpretations of the two user-supplied character references.
@@ -144,10 +145,22 @@ export function createWorkerAvatar(role='hero'){
   mergeRigidChildren(root);
   root.userData.characterRig={visual,torso,head,arms,legs,knees,elbows,role};
   root.userData.kind=role;
+  // Swap in the realistic rigged human once its model has loaded. The
+  // procedural figure above stays as the fallback if loading fails.
+  if(humanBaseReady())useHuman(root,role);
+  else loadHumanBase().then(()=>useHuman(root,role)).catch(error=>console.warn('Realistic character model unavailable, using fallback figure.',error));
   return root;
+}
+function useHuman(root,role){
+  if(root.userData.human)return;
+  const human=createHuman(role==='npc'?'npc':'hero');
+  root.userData.characterRig.visual.visible=false;
+  root.add(human);
+  root.userData.human=human.userData.human;
 }
 
 export function animateWorkerAvatar(root,motion){
+  if(root.userData.human){root.userData.human.update(motion);return;}
   const rig=root.userData.characterRig;
   if(!rig)return;
   const pose=characterPose(motion);

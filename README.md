@@ -1,4 +1,4 @@
-# Boatyard Simulator 3D — Prototype v0.4.0
+# Boatyard Simulator 3D — Prototype v0.5.0
 
 A playable browser game prototype inspired by a waterfront vessel-repair yard and user-supplied photographs of a large blue mobile marine travel lift. Includes a navigable ferry, a playable 3D travel lift, a complete delivery mission, and responsive HUD controls.
 
@@ -78,6 +78,9 @@ boatyard-simulator-3d/
 ├─ touch-controls.js   # Pointer-safe touch controls and analog joystick
 ├─ vessels.js          # Procedural yachts, work boats, ferries, barges, dhow and sailboats
 ├─ static-merge.js     # Merges static scenery and rigid model parts to cut draw calls
+├─ human-avatar.js     # Rigged human hero/workers: dressing, props, animation blending
+├─ physics.js          # Load pendulum, travel-lift mass dynamics, ferry hydrodynamics
+├─ assets/characters/  # worker-base.glb (rigged human body + motion-capture clips)
 ├─ hoist-steering.js   # Collision-checked hoist turning / low-speed pivot
 ├─ rules.test.mjs      # Existing mission-rule tests
 ├─ collision.test.mjs  # Terrain, obstacle and sweep tests
@@ -89,6 +92,29 @@ boatyard-simulator-3d/
 ├─ ARCHITECTURE.md     # System design and assumptions
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
+
+## v0.5.0 — Realistic characters and real-time physics
+
+**Characters**
+- The hero and the yard workers are now a rigged human body with realistic adult proportions (1.8 m) and motion-captured idle, walk and run animations. They replace the box figures.
+- Walk and run blend by ground speed, and playback speed is matched to the movement measured from the clips themselves, so the feet don't slide. Workers sometimes nod or shake their head while standing around.
+- **Dressed to match the two references:**
+  - **Both:** blue coveralls, a skin-coloured face and hands, and brown boots, coloured from the skeleton weights. A beard, brows, eyes, nose and ears are fitted to the measured head shape, along with chest and cargo pockets.
+  - **Hero:** white hardhat.
+  - **Workers:** blue hardhats, reflective chest, shoulder, arm and shin tape, and a brown belt with a silver buckle.
+- If the model fails to load, the previous procedural figure is used instead.
+- **Swapping in a different character:** the body uses the standard Mixamo skeleton. Any character downloaded from Mixamo as a skinned model and converted to `.glb` can replace `assets/characters/worker-base.glb` and keep these animations.
+
+**Physics** (`physics.js`, unit-tested; simplified models tuned for play, not engineering models)
+- **Suspended load:** the ferry hangs from the slings as a damped two-axis pendulum. The length is the distance from the lifting blocks to the hull, about 11.6 m at haul height, giving a swing period of about 6.8 s. It swings back when the lift accelerates, forward when it brakes, and outward in turns. The HUD shows the swing angle. **You cannot lower the hull onto the stands until the swing settles** (under 1.7°).
+- **Travel lift mass:** the same traction and brakes act on 85 t empty or 145 t loaded, so a loaded lift is noticeably slower to speed up and to stop.
+- **Ferry:**
+  - Thrust works against quadratic water drag, and a crash stop from full speed takes about 3 s.
+  - The rudder only turns the ferry when it's moving through the water. A small bow thruster turns it slowly at rest.
+  - Turning builds up and dies away gradually, the ferry heels outward in turns, and the bow lifts under power.
+  - It also rolls and pitches on the swell.
+
+**Credits and licence note:** the base character body and its animations are the "X Bot" character from Adobe Mixamo, as distributed with the three.js examples (`examples/models/gltf/Xbot.glb`), trimmed to five clips. Mixamo characters and animations are free for use in projects. Mixamo's terms don't allow redistributing them as standalone assets, so keep this file inside the game rather than offering it as a separate download.
 
 ## v0.4.0 — Open-world yard look and HUD
 

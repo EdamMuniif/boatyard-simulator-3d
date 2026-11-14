@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#071726" />
   <meta name="description" content="Boatyard Simulator 3D — pilot a ferry, drive a travel lift, and dry-dock your vessel." />
-  <title>Boatyard Simulator 3D | Prototype 0.4.0</title>
+  <title>Boatyard Simulator 3D | Prototype 0.5.0</title>
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./responsive-ui.css" />
   <script type="importmap">
-  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/" } }
   </script>
 </head>
 <body>
   <div id="game" aria-label="3D boatyard game viewport"></div>
   <div id="crosshair" aria-hidden="true">+</div>
   <header class="game-header">
-    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.4.0</small></div></div>
+    <div class="brand"><div class="brand-mark">B<span>3</span>D</div><div><strong>BOATYARD<span>SIM</span></strong><small>THILAFUSHI // PROTOTYPE 0.5.0</small></div></div>
     <div class="top-stats" aria-label="Yard status"><div><small>MONEY</small><b id="money">$142,500</b></div><div><small>WORKERS</small><b id="workers">5</b></div><div><small>MATERIALS</small><b id="materials">85%</b></div><div class="stat-mode"><small>STATUS</small><b id="modeLabel">ON FOOT</b></div></div>
     <nav class="hud-actions" aria-label="Game menu">
       <button type="button" id="hudHelp" class="hud-icon-button" aria-label="Show game controls" title="Game controls">? HELP</button>
