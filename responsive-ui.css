@@ -167,3 +167,46 @@ button:disabled{cursor:default;filter:saturate(.5);opacity:.5}
 }
 .round-button:disabled,.hoist-turn-controls button:disabled{opacity:.45}
 #game canvas:focus-visible{outline:2px solid #81e0ed;outline-offset:-3px}
+
+/* v0.4 open-world HUD: status strip, mission checklist, circular radar. */
+.top-stats{gap:16px;padding:9px 16px;background:linear-gradient(180deg,#0a1a24f2,#08151ee6);border:1px solid #e7b25f55;border-radius:6px}
+.top-stats div{flex-direction:row;align-items:baseline;gap:6px}
+.top-stats small{color:#f0b85a;font-weight:900;letter-spacing:1px;font-size:11px}
+.top-stats small::after{content:':'}
+.top-stats b{font-size:14px;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.4px}
+.top-stats .stat-mode small{color:#86d9e8}
+.mission-panel{background:linear-gradient(160deg,#0b1a24f2,#08141ce6);border-left-color:#f0b85a}
+.mission-panel h1 span{color:#f0b85a}
+.mission-checklist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:3px}
+.mission-checklist li{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.6px;color:#8ea6b2;padding:3px 0;font-weight:700}
+.mission-checklist li::after{content:'';width:12px;height:12px;border:1.5px solid #6f8f9c;border-radius:2px;flex:none;margin-left:10px;font-size:10px;line-height:12px;text-align:center}
+.mission-checklist li.current{color:#fff}
+.mission-checklist li.current::after{border-color:#f0b85a;box-shadow:0 0 0 2px #f0b85a40}
+.mission-checklist li.done{color:#f0b85a}
+.mission-checklist li.done::after{content:'\2713';border-color:#f0b85a;background:#f0b85a;color:#0a1a24;font-weight:900}
+.mission-panel.is-compact .mission-checklist{display:none}
+.map-wrap.radar{width:216px;background:transparent;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:0}
+.map-wrap.radar canvas{border-radius:50%;border:2px solid #a9e3eeaa;box-shadow:0 6px 24px #0009;background:#08313f}
+.map-wrap.radar .map-heading{background:#061626d0;padding:4px 6px;border-radius:5px;margin:0 0 6px}
+.map-wrap.radar .map-legend{background:#061626b8;border-radius:4px;padding:3px 6px}
+.map-wrap.radar.is-collapsed{width:auto}
+.map-loc{color:#5fe0ee;margin-left:8px}
+.instrument-head{gap:10px;white-space:nowrap}
+.instrument-head span:first-child{overflow:hidden;text-overflow:ellipsis}
+.finish-score{margin-bottom:8px}
+.finish-score.total{margin:10px 0 22px;border-color:#e8b46c99}
+.finish-score em{font-style:normal;color:#a8bece;margin-left:6px}
+@media(max-width:1199px){
+  .top-stats{gap:10px;padding:7px 10px}
+  .top-stats .stat-mode{display:none}
+}
+@media(max-width:700px),(pointer:coarse){
+  .map-wrap.radar{width:112px}
+  .map-wrap.radar .map-heading{font-size:8px;padding:3px 4px;margin-bottom:4px}
+  .mission-panel .mission-checklist{display:none}
+}
+/* Tablets: room for the money readout next to the menu buttons. */
+@media(pointer:coarse) and (min-width:600px){
+  .top-stats{display:flex}
+  .top-stats div:not(:first-child){display:none}
+}

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {mergeRigidChildren} from './static-merge.js';
 import {characterPose,ARM_RIG,IDLE_ARM_POSE} from './character-motion.js';
 
 // Stylized 3D interpretations of the two user-supplied character references.
@@ -139,6 +140,8 @@ export function createWorkerAvatar(role='hero'){
     glove.scale.set(.92,.8,.86);
     arms.push(shoulder);elbows.push(elbow);
   }
+  // One draw call per rigid body part instead of one per detail box.
+  mergeRigidChildren(root);
   root.userData.characterRig={visual,torso,head,arms,legs,knees,elbows,role};
   root.userData.kind=role;
   return root;

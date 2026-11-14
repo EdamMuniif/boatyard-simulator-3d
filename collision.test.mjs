@@ -45,3 +45,21 @@ test('continuous movement catches tunneling and steering collisions',()=>{
   assert.equal(sweepVehicle(p(0,-49),p(0,16),0,0,canFerryAt),true);
   assert.equal(sweepVehicle(p(0,16),p(15,16),0,0,canFerryAt),false);
 });
+
+test('v0.4 yard vessels are solid, sit on land, and keep mission routes clear',async()=>{
+  const {HARDSTAND_VESSELS,MOORED_VESSELS,WALKABLE_GROUND,vesselFootprint}=await import('./collision.js');
+  const inside=(x,z,r)=>Math.abs(x-r.x)<=r.w/2&&Math.abs(z-r.z)<=r.d/2;
+  for(const v of HARDSTAND_VESSELS){
+    const f=vesselFootprint(v);
+    assert.equal(canWalkAt(p(v.x,v.z)),false,`${v.id}: player walks through hull`);
+    for(const [dx,dz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
+      const x=f.x+dx*f.w/2,z=f.z+dz*f.d/2;
+      assert.ok(WALKABLE_GROUND.some(r=>inside(x,z,r)),`${v.id}: stand over water at ${x},${z}`);
+    }
+  }
+  for(const v of MOORED_VESSELS){
+    assert.equal(canFerryAt(p(v.x,v.z),0),false,`${v.id}: ferry sails through moored vessel`);
+  }
+  // Walk from harbor dispatch to the hoist boarding point along the west quay.
+  for(let z=37;z<=63;z+=1)assert.equal(canWalkAt(p(-17,z)),true,`walk route blocked at z=${z}`);
+});

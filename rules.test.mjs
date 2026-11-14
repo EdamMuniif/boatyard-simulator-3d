@@ -1,3 +1,4 @@
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PHASES,WAYPOINTS,MISSION,distance2D,canBerthFerry,canAttachSling,canDock} from './rules.js';
 assert.equal(PHASES.length,8);
@@ -17,3 +18,16 @@ assert.equal(canDock({x:-2,z:108},0,4),false);
 assert.ok(MISSION.dockPlacementHeight < MISSION.liftRequired);
 assert.ok(MISSION.liftRequired <= MISSION.maxLift);
 console.log('PASS: mission and geometry rule checks');
+
+test('contract settlement pays out and deducts contact damage',async()=>{
+  const {settleContract,ECONOMY,isImpact}=await import('./rules.js');
+  assert.deepEqual(settleContract(0),{payout:ECONOMY.contractPayout,penalties:0,net:ECONOMY.contractPayout,contacts:0});
+  const three=settleContract(3);
+  assert.equal(three.penalties,3*ECONOMY.contactPenalty);
+  assert.equal(three.net,ECONOMY.contractPayout-3*ECONOMY.contactPenalty);
+  assert.equal(settleContract(-2).contacts,0);
+  assert.equal(settleContract('x').net,ECONOMY.contractPayout);
+  // Creeping into a wall is not an impact; driving into it is.
+  assert.equal(isImpact(.2,ECONOMY.hoistImpactSpeed),false);
+  assert.equal(isImpact(-1.4,ECONOMY.hoistImpactSpeed),true);
+});

@@ -20,6 +20,18 @@ export const MISSION = Object.freeze({
   maxFerryBerthSpeed:1.5,maxPositionSpeed:1.0,maxDockSpeed:.95,
   liftRequired:5.4,maxLift:6.25,dockPlacementHeight:3.28
 });
+// Yard economy (v0.4). MATERIALS is a fixed display value until a supply
+// system exists; money and contact penalties are live.
+export const ECONOMY = Object.freeze({
+  startingFunds:142500, contractPayout:15000, contactPenalty:500,
+  materialsPercent:85, ferryImpactSpeed:.6, hoistImpactSpeed:.5
+});
+export function settleContract(contacts){
+  const n=Math.max(0,Math.floor(Number(contacts)||0));
+  const penalties=n*ECONOMY.contactPenalty;
+  return {payout:ECONOMY.contractPayout,penalties,net:ECONOMY.contractPayout-penalties,contacts:n};
+}
+export const isImpact=(speed,threshold)=>Math.abs(Number(speed)||0)>=threshold;
 export const distance2D=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 export const atTarget=(a,b,tolerance)=>distance2D(a,b)<=tolerance;
 export const canBerthFerry=(pos,speed)=>atTarget(pos,MISSION.ferryDock,MISSION.ferryTolerance)&&Math.abs(speed)<MISSION.maxFerryBerthSpeed;
