@@ -16,7 +16,7 @@ Open **http://localhost:8080** in a current Chrome, Edge, Firefox, or Safari bro
 
 On Windows, `py -m http.server 8080` is an alternative. If Python is not installed, VS Code Live Server or any other local static web server also works. **Do not double-click `index.html` to open it as `file://`**; modern browsers can block ES modules in that mode.
 
-**Internet required on first and subsequent launches:** The prototype loads the pinned Three.js module (`three@0.187.0`) from jsDelivr. Its library is not included in the ZIP. The game assets and geometry are otherwise local and procedurally generated. No install or `npm install` is necessary. For testing on a phone, run the server on a computer connected to the same Wi-Fi and open the computer’s LAN IP with port `8080` from the mobile browser (only on a trusted network).
+**Internet required on first and subsequent launches:** The prototype loads the pinned Three.js module (`three@0.187.0`) from jsDelivr. Its library is not included in the ZIP. The character models are bundled locally, and the game generates the yard geometry. No install or `npm install` is necessary. For testing on a phone, run the server on a computer connected to the same Wi-Fi and open the computer’s LAN IP with port `8080` from the mobile browser (only on a trusted network).
 
 ## Controls
 
@@ -80,7 +80,7 @@ boatyard-simulator-3d/
 ├─ static-merge.js     # Merges static scenery and rigid model parts to cut draw calls
 ├─ human-avatar.js     # Rigged human hero/workers: dressing, props, animation blending
 ├─ physics.js          # Load pendulum, travel-lift mass dynamics, ferry hydrodynamics
-├─ assets/characters/  # worker-base.glb (rigged human body + motion-capture clips)
+├─ assets/characters/  # Textured hero GLB and rigged worker base
 ├─ hoist-steering.js   # Collision-checked hoist turning / low-speed pivot
 ├─ rules.test.mjs      # Existing mission-rule tests
 ├─ collision.test.mjs  # Terrain, obstacle and sweep tests
@@ -93,6 +93,12 @@ boatyard-simulator-3d/
 └─ .github/workflows/  # Pages deployment and validation CI
 ```
 
+## On-foot hero
+
+- `assets/characters/boatyard-worker.glb` contains the custom player mesh, embedded texture, skeleton, and in-place `idle`, `walk`, and `run` clips. The front texture draws from the supplied worker illustration. The side and back details were modeled to match the visible clothing and equipment.
+- The existing player controller still provides ground speed and jump state. The on-foot avatar walks at normal speed and blends to a run when sprinting. If the hero asset fails to load, the game uses the existing rigged worker model.
+- To update the hero asset, keep the model upright, facing +Z, and include the same three named clips. The loader scales the model to 1.8 m and aligns the bottom of the mesh to ground level.
+
 ## v0.5.0 — Realistic characters and real-time physics
 
 **Characters**
@@ -103,7 +109,7 @@ boatyard-simulator-3d/
   - **Hero:** white hardhat.
   - **Workers:** blue hardhats, reflective chest, shoulder, arm and shin tape, and a brown belt with a silver buckle.
 - If the model fails to load, the previous procedural figure is used instead.
-- **Swapping in a different character:** the body uses the standard Mixamo skeleton. Any character downloaded from Mixamo as a skinned model and converted to `.glb` can replace `assets/characters/worker-base.glb` and keep these animations.
+- `assets/characters/worker-base.glb` supplies the body and five motion clips for the yard workers and the backup hero.
 
 **Physics** (`physics.js`, unit-tested; simplified models tuned for play, not engineering models)
 - **Suspended load:** the ferry hangs from the slings as a damped two-axis pendulum. The length is the distance from the lifting blocks to the hull, about 11.6 m at haul height, giving a swing period of about 6.8 s. It swings back when the lift accelerates, forward when it brakes, and outward in turns. The HUD shows the swing angle. **You cannot lower the hull onto the stands until the swing settles** (under 1.7°).
@@ -114,7 +120,7 @@ boatyard-simulator-3d/
   - Turning builds up and dies away gradually, the ferry heels outward in turns, and the bow lifts under power.
   - It also rolls and pitches on the swell.
 
-**Credits and licence note:** the base character body and its animations are the "X Bot" character from Adobe Mixamo, as distributed with the three.js examples (`examples/models/gltf/Xbot.glb`), trimmed to five clips. Mixamo characters and animations are free for use in projects. Mixamo's terms don't allow redistributing them as standalone assets, so keep this file inside the game rather than offering it as a separate download.
+**Credits and licence note:** the worker base body, the two character rigs and their motion clips are derived from Adobe Mixamo's "X Bot", as distributed with the three.js examples (`examples/models/gltf/Xbot.glb`). The hero's mesh and textures were made for this game. Keep the Mixamo-derived files in the game package.
 
 ## v0.4.0 — Open-world yard look and HUD
 

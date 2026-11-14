@@ -1,20 +1,13 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import {CHARACTER_TUNING} from './character-motion.js';
 import {mergeRigidChildren} from './static-merge.js';
 
-// Realistic rigged human for the hero and the yard workers (v0.5).
-//
-// The base body and its motion-captured animations come from the "X Bot"
-// character of Adobe Mixamo (distributed with the three.js examples). It uses
-// the standard Mixamo skeleton, so any Mixamo character exported to .glb can
-// replace HUMAN_MODEL_URL and keep these animations.
-//
-// The base body is a plain mannequin. We dress it per role by colouring each
-// vertex from its dominant bone and its rest-pose position (coveralls, skin,
-// boots, reflective tape, belt) and attach props to bones (hardhat, beard,
-// pockets). Colours follow the two character references.
+// The hero has a custom textured mesh on the existing Mixamo skeleton.
+// The NPCs and backup hero use the X Bot base with role-specific colors and props.
 export const HUMAN_MODEL_URL=new URL('./assets/characters/worker-base.glb',import.meta.url).href;
+const HERO_MODEL_URL=new URL('./assets/characters/boatyard-worker.glb',import.meta.url).href;
 export const HUMAN_HEIGHT=1.8;
 
 export const HUMAN_LOOKS=Object.freeze({
@@ -24,14 +17,36 @@ export const HUMAN_LOOKS=Object.freeze({
 
 let basePromise=null;
 let base=null;
-export function loadHumanBase(url=HUMAN_MODEL_URL){
-  basePromise??=new GLTFLoader().loadAsync(url).then(gltf=>{base=prepareBase(gltf);return base;});
+let heroPromise=null;
+let heroBase=null;
+
+function loadWorkerBase(){
+  basePromise??=new GLTFLoader().loadAsync(HUMAN_MODEL_URL).then(gltf=>{base=prepareBase(gltf);return base;});
   return basePromise;
 }
-export const humanBaseReady=()=>!!base;
+
+export function loadHumanBase(role='hero'){
+  if(role!=='hero')return loadWorkerBase();
+  heroPromise??=new GLTFLoader().loadAsync(HERO_MODEL_URL)
+    .then(gltf=>{
+      if(!skinnedMeshes(gltf.scene).length||
+        !['idle','walk','run'].every(name=>gltf.animations.some(clip=>clip.name===name))){
+        throw new Error('A skinned mesh and idle, walk, and run clips are required.');
+      }
+      return prepareBase(gltf,true);
+    })
+    .catch(error=>{
+      console.warn('Custom hero unavailable, using the existing worker model.',error);
+      return loadWorkerBase();
+    })
+    .then(asset=>{heroBase=asset;return asset;});
+  return heroPromise;
+}
+
+export const humanBaseReady=(role='hero')=>!!(role==='hero'?heroBase:base);
 
 // Stand the model on y=0 at HUMAN_HEIGHT, facing +z, with in-place clips.
-function prepareBase(gltf){
+function prepareBase(gltf,textured=false){
   const scene=gltf.scene;
   scene.updateMatrixWorld(true);
   const box=new THREE.Box3().setFromObject(scene);
@@ -52,10 +67,11 @@ function prepareBase(gltf){
     }
     clips[clip.name]=clip;
   }
-  const looks={};
-  for(const [role,look] of Object.entries(HUMAN_LOOKS))looks[role]=dressGeometry(wrapper,look);
   const stride=measureStrideSpeeds(wrapper,clips);
-  return {wrapper,clips,looks,stride,anchors:measureAnchors(wrapper)};
+  const looks=textured?null:Object.fromEntries(
+    Object.entries(HUMAN_LOOKS).map(([role,look])=>[role,dressGeometry(wrapper,look)])
+  );
+  return {wrapper,clips,looks,stride,anchors:textured?null:measureAnchors(wrapper)};
 }
 
 const boneOf=name=>name.replace(/^mixamorig:?/,'');
@@ -239,20 +255,24 @@ function dressProps(model,role,look,a){
 // One animated human. update(motion) is called every frame with the same
 // motion state that drives the character controller.
 export function createHuman(role='hero'){
-  if(!base)throw new Error('Human base model not loaded');
-  const look=HUMAN_LOOKS[role]||HUMAN_LOOKS.hero;
-  const model=SkeletonUtils.clone(base.wrapper);
-  const material=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:.02});
-  const geos=base.looks[role]||base.looks.hero;
+  const asset=role==='hero'?heroBase:base;
+  if(!asset)throw new Error('Human base model not loaded');
+  const model=SkeletonUtils.clone(asset.wrapper);
+  const geos=asset.looks?.[role]||asset.looks?.hero;
+  const material=geos?new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:.02}):null;
   model.traverse(o=>{
-    if(o.isSkinnedMesh){o.geometry=geos.get(o.name)||o.geometry;o.material=material;o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;}
+    if(!o.isSkinnedMesh)return;
+    if(geos){o.geometry=geos.get(o.name)||o.geometry;o.material=material;}
+    o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
   });
-  dressProps(model,role,look,base.anchors);
-  // Props ride on bones; merge each bone's props into one draw call.
-  mergeRigidChildren(model);
+  if(geos){
+    dressProps(model,role,HUMAN_LOOKS[role]||HUMAN_LOOKS.hero,asset.anchors);
+    // Props ride on bones; merge each bone's props into one draw call.
+    mergeRigidChildren(model);
+  }
   const mixer=new THREE.AnimationMixer(model);
   const actions={};
-  for(const [name,clip] of Object.entries(base.clips)){
+  for(const [name,clip] of Object.entries(asset.clips)){
     const act=mixer.clipAction(clip);
     if(name==='agree'||name==='headShake'){act.setLoop(THREE.LoopOnce,1);act.clampWhenFinished=false;}
     else{act.play();act.setEffectiveWeight(name==='idle'?1:0);}
@@ -263,14 +283,17 @@ export function createHuman(role='hero'){
     const now=performance.now();
     const dt=Math.min(.1,Math.max(0,(now-state.last)/1000));state.last=now;
     const speed=Math.max(0,motion.speed||0);
-    const walkRef=base.stride.walk||1.4,runRef=base.stride.run||3.6;
+    const walkRef=asset.stride.walk||1.4,runRef=asset.stride.run||3.6;
     // Idle -> walk -> run blend by ground speed.
     const toWalk=THREE.MathUtils.smoothstep(speed,.05,.9);
-    const toRun=THREE.MathUtils.smoothstep(speed,walkRef*1.1,runRef*.85);
+    // The hero's regular movement should still walk at the game's walk speed.
+    const toRun=role==='hero'
+      ?THREE.MathUtils.smoothstep(speed,CHARACTER_TUNING.walkSpeed,CHARACTER_TUNING.runSpeed)
+      :THREE.MathUtils.smoothstep(speed,walkRef*1.1,runRef*.85);
     let wIdle=1-toWalk,wWalk=toWalk*(1-toRun),wRun=toWalk*toRun;
     const walk=actions.walk,run=actions.run;
     // Playback rate follows real ground speed; phases stay locked together.
-    walk.timeScale=THREE.MathUtils.clamp(speed/walkRef,.45,1.8);
+    walk.timeScale=THREE.MathUtils.clamp(speed/walkRef,.45,role==='hero'?2.6:1.8);
     run.timeScale=THREE.MathUtils.clamp(speed/runRef,.6,1.6);
     if(wRun>.02&&wWalk>.02)run.time=(walk.time/walk.getClip().duration)*run.getClip().duration;
     if(motion.grounded===false){walk.timeScale=0;run.timeScale=0;wIdle=0;wRun=Math.max(wRun,.6);wWalk=1-wRun;}
@@ -295,6 +318,7 @@ export function createHuman(role='hero'){
     run.setEffectiveWeight(wRun*rest);
     mixer.update(dt);
   }
+  if(!geos)mixer.update(0);
   model.userData.human={update,mixer,role};
   return model;
 }

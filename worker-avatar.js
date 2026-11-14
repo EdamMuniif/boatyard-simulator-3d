@@ -147,8 +147,8 @@ export function createWorkerAvatar(role='hero'){
   root.userData.kind=role;
   // Swap in the realistic rigged human once its model has loaded. The
   // procedural figure above stays as the fallback if loading fails.
-  if(humanBaseReady())useHuman(root,role);
-  else loadHumanBase().then(()=>useHuman(root,role)).catch(error=>console.warn('Realistic character model unavailable, using fallback figure.',error));
+  if(humanBaseReady(role))useHuman(root,role);
+  else loadHumanBase(role).then(()=>useHuman(root,role)).catch(error=>console.warn('Realistic character model unavailable, using fallback figure.',error));
   return root;
 }
 function useHuman(root,role){
