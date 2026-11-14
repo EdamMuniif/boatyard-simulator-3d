@@ -7,6 +7,8 @@ import {canWalkAt,canFerryAt,canHoistAt,sweepVehicle,WORKSHOPS,HARDSTAND_VESSELS
 import {proposeHoistMotion,wheelSteeringTarget} from './hoist-steering.js';
 import {bindTouchControls} from './touch-controls.js';
 import {createNpcSystem} from './npc-system.js';
+import {rigPose} from './rigging-profile.js';
+import {SWING,createSwing,resetSwing,stepSwing,swingAmplitude,swingOffset,stepHoistSpeed,createFerryState,stepFerry} from './physics.js';
 
 const $=id=>document.getElementById(id);
 const clamp=THREE.MathUtils.clamp;
@@ -50,6 +52,8 @@ class DockyardGame {
     this.lastHoistSpeed=0;
     this.liftHeight=0;this.attached=false;
     this.funds=ECONOMY.startingFunds;this.contacts=0;this.inContact=false;
+    // v0.5 dynamics: suspended-load pendulum and ferry hydrodynamics.
+    this.swing=createSwing();this.ferryState=createFerryState();
     // Location E rides on the travel lift above its top beam.
     this.hoistMarker=createLocationMarker('E','TRAVEL LIFT HOIST');
     this.hoistMarker.position.set(0,25,0);this.hoist.root.add(this.hoistMarker);
@@ -277,6 +281,7 @@ class DockyardGame {
         this.ferry.root.position.z=this.hoist.root.position.z;
         this.ferry.root.rotation.y=0;
         this.hoist.setRigging(this.liftHeight,true);
+        resetSwing(this.swing);
         this.setPhase('LIFT');this.notify('SIMULATED SLINGS ATTACHED // Hold R to raise.',3200);
       }else this.notify('Align the hoist with the ferry, then stop before attaching.');
     }else if(stage==='HAUL'&&canDock(this.hoist.root.position,this.hoistSpeed,this.liftHeight)){
@@ -299,7 +304,8 @@ class DockyardGame {
     this.ferry.root.rotation.y=state.ferryHeading;
     this.hoist.root.rotation.y=state.hoistHeading;
     this.ferrySpeed=0;this.hoistSpeed=0;this.lastHoistSpeed=0;
-    if(this.ferry.visual)this.ferry.visual.rotation.set(0,0,0);
+    if(this.ferry.visual){this.ferry.visual.rotation.set(0,0,0);this.ferry.visual.position.set(0,0,0);}
+    resetSwing(this.swing);Object.assign(this.ferryState,createFerryState());
     this.liftHeight=state.liftHeight;this.attached=state.attached;
     this.hoist.setRigging(this.liftHeight,this.attached);
     this.clearTransientInput();
@@ -335,10 +341,11 @@ class DockyardGame {
   }
   advanceFerry(dt){
     const {hor,ver}=this.axes();
-    this.ferrySpeed=clamp(this.ferrySpeed+ver*3.7*dt-this.ferrySpeed*.66*dt,-2.75,6.25);
-    if(this.keys.Space||this.touch.brake)this.ferrySpeed=damp(this.ferrySpeed,0,7.7,dt);
-    this.ferryHeading+=hor*(.3+.12*Math.min(1,Math.abs(this.ferrySpeed)/3))*(this.ferrySpeed>=0?1:-1)*dt;
-    this.ferryHeading=clamp(this.ferryHeading,-1.25,1.25);
+    // Thrust against quadratic drag; the rudder only bites with way on.
+    const fs=this.ferryState;fs.speed=this.ferrySpeed;
+    stepFerry(fs,{throttle:ver,steer:hor,brake:!!(this.keys.Space||this.touch.brake)},dt);
+    this.ferrySpeed=fs.speed;
+    this.ferryHeading=clamp(this.ferryHeading+fs.yawRate*dt,-1.25,1.25);
     const p=this.ferry.root.position;const nx=p.x+Math.sin(this.ferryHeading)*this.ferrySpeed*dt;
     const nz=p.z+Math.cos(this.ferryHeading)*this.ferrySpeed*dt;
     const oldHeading=this.ferry.root.rotation.y;
@@ -347,12 +354,20 @@ class DockyardGame {
       this.inContact=false;
     }else{
       const impactSpeed=this.ferrySpeed;
-      this.ferryHeading=oldHeading;this.ferrySpeed=0;
+      this.ferryHeading=oldHeading;this.ferrySpeed=0;this.ferryState.speed=0;this.ferryState.yawRate=0;
       this.registerContact(impactSpeed,ECONOMY.ferryImpactSpeed,'SHORE CONTACT');
     }
-    // Gentle water motion, game stylization only.
-    this.ferry.root.position.y=.07+Math.sin(performance.now()*.0013)*.045;
+    // Swell (heave, roll, pitch) plus heel in turns and trim under power.
+    const t=performance.now()*.001;
+    this.ferry.root.position.y=.07+Math.sin(t*1.3)*.045+Math.sin(t*.71+1.2)*.02;
+    if(this.ferry.visual){
+      this.ferry.visual.position.set(0,0,0);
+      this.ferry.visual.rotation.z=fs.heel+Math.sin(t*.9)*.018;
+      this.ferry.visual.rotation.x=fs.trim+Math.sin(t*1.1+1)*.01;
+    }
   }
+  // Pendulum length: lifting blocks down to where the slings cradle the hull.
+  slingLength(){const pose=rigPose(this.liftHeight,true);return pose.blockY-pose.bottomY;}
   notifyLimited(message){if(performance.now()>this.toastDeadline)this.notify(message,1600);}
   advanceHoist(dt){
     const {hor,ver}=this.axes();const stage=this.phaseId;
@@ -365,10 +380,12 @@ class DockyardGame {
     // When turning without throttle, settle residual momentum so pivot controls
     // become responsive rather than waiting several seconds for slow coasting.
     const turning=Math.abs(steering)>.12&&Math.abs(throttle)<.12;
-    const drag=drivingAllowed?(turning?4.5:1.25):7.0;
-    this.hoistSpeed=clamp(this.hoistSpeed+throttle*4.5*dt-this.hoistSpeed*drag*dt,-4.25,5.25);
-    if(this.keys.Space||this.touch.brake)this.hoistSpeed=damp(this.hoistSpeed,0,8,dt);
-    if(Math.abs(this.hoistSpeed)<.045&&Math.abs(throttle)<.12)this.hoistSpeed=0;
+    // Same traction and brakes on more mass: a loaded lift is slower to
+    // speed up and to stop.
+    this.hoistSpeed=stepHoistSpeed(this.hoistSpeed,{
+      throttle,brake:!!(this.keys.Space||this.touch.brake),driving:drivingAllowed,
+      turningInPlace:turning,loaded:this.attached
+    },dt);
     const p=this.hoist.root.position;
     const oldHeading=this.hoistHeading;
     const proposed=proposeHoistMotion({
@@ -395,20 +412,29 @@ class DockyardGame {
     const raising=(this.keys.KeyR||this.touch.raise)&&stage==='LIFT';
     const lowering=(this.keys.KeyF||this.touch.lower)&&stage==='LOWER';
     if(raising) this.liftHeight=clamp(this.liftHeight+dt*1.2,0,MISSION.maxLift);
-    if(lowering)this.liftHeight=clamp(this.liftHeight-dt*1.05,0,MISSION.maxLift);
+    if(lowering){
+      // A swinging hull cannot be set down on the stands.
+      if(this.attached&&swingAmplitude(this.swing,this.slingLength())>SWING.settled){
+        this.notifyLimited('LOAD SWINGING // Hold position until it settles');
+      }else this.liftHeight=clamp(this.liftHeight-dt*1.05,0,MISSION.maxLift);
+    }
     if(this.attached){
       this.ferry.root.position.set(p.x,.08+this.liftHeight,p.z);
       this.ferry.root.rotation.y=this.hoistHeading;
       this.hoist.setRigging(this.liftHeight,true);
     }
-    // Child-only aesthetic sway: mission positions and collision remain exact.
-    // The values are visual game effects, not a suspended-load dynamics model.
+    // Suspended load: the hull hangs from the slings as a damped pendulum
+    // driven by the lift's acceleration and turning. Only the child visual
+    // moves; mission positions and collision stay on the root.
+    if(this.attached&&dt>0){
+      const accel=(this.hoistSpeed-this.lastHoistSpeed)/dt;
+      const lateral=this.hoistSpeed*(appliedHeading/dt);
+      stepSwing(this.swing,{accel,lateral,length:this.slingLength()},dt);
+    }else resetSwing(this.swing);
     if(this.ferry.visual){
-      const acceleration=this.hoistSpeed-this.lastHoistSpeed;
-      const roll=this.attached?clamp(-this.hoistSpeed*.004-hor*.015,-.035,.035):0;
-      const pitch=this.attached?clamp(-acceleration*.045,-.035,.035):0;
-      this.ferry.visual.rotation.z=damp(this.ferry.visual.rotation.z,roll,2.2,dt);
-      this.ferry.visual.rotation.x=damp(this.ferry.visual.rotation.x,pitch,2.2,dt);
+      const o=swingOffset(this.swing,this.slingLength());
+      this.ferry.visual.position.set(o.x,o.y,o.z);
+      this.ferry.visual.rotation.set(o.pitch,0,o.roll);
     }
     this.lastHoistSpeed=this.hoistSpeed;
     if(stage==='LIFT'&&this.liftHeight>=MISSION.liftRequired){
@@ -421,6 +447,8 @@ class DockyardGame {
       this.liftHeight=MISSION.dockPlacementHeight;this.attached=false;
       this.ferry.root.position.set(MISSION.dock.x,MISSION.dockPlacementHeight,MISSION.dock.z);
       this.ferry.root.rotation.y=0;
+      resetSwing(this.swing);
+      if(this.ferry.visual){this.ferry.visual.position.set(0,0,0);this.ferry.visual.rotation.set(0,0,0);}
       this.hoist.setRigging(0,false);
       this.setPhase('COMPLETE');
       const result=settleContract(this.contacts);
@@ -498,7 +526,10 @@ class DockyardGame {
     $('vehicleName').textContent=this.mode==='walk'?'PEDESTRIAN':this.mode==='ferry'?'FERRY RTL-STYLE':'200T TRAVEL LIFT';
     $('speed').textContent=(this.mode==='ferry'?Math.abs(this.ferrySpeed):this.mode==='hoist'?Math.abs(this.hoistSpeed):this.character.speed).toFixed(1);
     $('speedUnit').textContent='GAME m/s';
-    $('liftReading').textContent=this.mode==='hoist'?`LIFT ${Math.round(this.liftHeight/MISSION.maxLift*100)}%`:'HOIST READY';
+    const swingDeg=swingAmplitude(this.swing,this.slingLength())*180/Math.PI;
+    $('liftReading').textContent=this.mode==='hoist'
+      ?`LIFT ${Math.round(this.liftHeight/MISSION.maxLift*100)}%${this.attached?` · SWING ${swingDeg.toFixed(1)}°`:''}`
+      :'HOIST READY';
     $('instrumentFoot').textContent=this.mode==='walk'?'WASD WALK · SHIFT RUN · SPACE JUMP':this.mode==='ferry'?'WASD PILOT · SPACE BRAKE':'A/D TURN · W/S DRIVE';
     const brake=$('touchBrake');
     brake.firstChild.textContent=this.mode==='walk'?'↑':'■';

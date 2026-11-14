@@ -85,7 +85,7 @@ export function mergeRigidChildren(root){
   for(const parent of parents){
     const buckets=new Map();
     for(const obj of parent.children){
-      if(!obj.isMesh||obj.userData.dynamic||obj.children.length)continue;
+      if(!obj.isMesh||obj.isSkinnedMesh||obj.userData.dynamic||obj.children.length)continue;
       const m=obj.material;
       if(Array.isArray(m)||m.transparent||m.map||!m.isMeshStandardMaterial)continue;
       const g=obj.geometry;
