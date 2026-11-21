@@ -99,6 +99,18 @@ boatyard-simulator-3d/
 - The existing player controller still provides ground speed and jump state. The on-foot avatar walks at normal speed and blends to a run when sprinting. If the hero asset fails to load, the game uses the existing rigged worker model.
 - To update the hero asset, keep the model upright, facing +Z, and include the same three named clips. The loader scales the model to 1.8 m and aligns the bottom of the mesh to ground level.
 
+## Yard workers
+
+- The workers use the same textured mesh and clips as the hero. It loads once and is shared, so there is no extra download.
+- A workwear shader dresses them to match the second character reference:
+  - **Blue hardhat:** only the texels of the hardhat block in the atlas are recoloured (`TEXTURED_HAT_UV` in `human-avatar.js`), keeping the painted shading.
+  - **Reflective tape:** a chest band below the pockets, shoulder straps, upper-arm bands and shin bands.
+  - **Brown belt** at the waist.
+  - The tape and belt are drawn per pixel from each vertex's rest-pose position, so their edges stay straight and anti-aliased. The tape is slightly emissive so it reads as reflective in shade.
+- **If the textured model is replaced,** update `TEXTURED_HAT_UV` to the new atlas's hardhat area.
+- The textured model has no nod or head-shake clips, so idle workers simply stand.
+- If the textured model fails to load, the hero and the workers fall back to the dressed X Bot base.
+
 ## v0.5.0 — Realistic characters and real-time physics
 
 **Characters**

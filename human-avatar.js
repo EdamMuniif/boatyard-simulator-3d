@@ -4,8 +4,10 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import {CHARACTER_TUNING} from './character-motion.js';
 import {mergeRigidChildren} from './static-merge.js';
 
-// The hero has a custom textured mesh on the existing Mixamo skeleton.
-// The NPCs and backup hero use the X Bot base with role-specific colors and props.
+// The hero and the yard workers share one custom textured mesh on the Mixamo
+// skeleton. Workers get a blue hardhat, reflective tape and a brown belt drawn
+// over the same texture by the workwear shader below. If the textured model
+// cannot load, everyone falls back to the X Bot base with colours and props.
 export const HUMAN_MODEL_URL=new URL('./assets/characters/worker-base.glb',import.meta.url).href;
 const HERO_MODEL_URL=new URL('./assets/characters/boatyard-worker.glb',import.meta.url).href;
 export const HUMAN_HEIGHT=1.8;
@@ -25,8 +27,7 @@ function loadWorkerBase(){
   return basePromise;
 }
 
-export function loadHumanBase(role='hero'){
-  if(role!=='hero')return loadWorkerBase();
+export function loadHumanBase(){
   heroPromise??=new GLTFLoader().loadAsync(HERO_MODEL_URL)
     .then(gltf=>{
       if(!skinnedMeshes(gltf.scene).length||
@@ -43,7 +44,7 @@ export function loadHumanBase(role='hero'){
   return heroPromise;
 }
 
-export const humanBaseReady=(role='hero')=>!!(role==='hero'?heroBase:base);
+export const humanBaseReady=()=>!!heroBase;
 
 // Stand the model on y=0 at HUMAN_HEIGHT, facing +z, with in-place clips.
 function prepareBase(gltf,textured=false){
@@ -71,7 +72,10 @@ function prepareBase(gltf,textured=false){
   const looks=textured?null:Object.fromEntries(
     Object.entries(HUMAN_LOOKS).map(([role,look])=>[role,dressGeometry(wrapper,look)])
   );
-  return {wrapper,clips,looks,stride,anchors:textured?null:measureAnchors(wrapper)};
+  // Textured model: one geometry copy carrying the rest-pose attributes the
+  // workwear shader needs (texture colours are left untouched).
+  const workwear=textured?restGeometries(wrapper):null;
+  return {wrapper,clips,looks,workwear,stride,anchors:measureAnchors(wrapper)};
 }
 
 const boneOf=name=>name.replace(/^mixamorig:?/,'');
@@ -111,6 +115,35 @@ function measureAnchors(root){
   return {...a,chestFront,headFront,headBack,headSide,thighOuter,crown,chin};
 }
 
+// Rest-pose position and body region (x torso, y upper arm, z shin) per
+// vertex, used by the workwear shader to draw tape and belt per pixel.
+function addRestAttributes(mesh,g){
+  const P=g.attributes.position,SI=g.attributes.skinIndex,SW=g.attributes.skinWeight;
+  const bones=mesh.skeleton.bones.map(b=>boneOf(b.name));
+  const rest=new Float32Array(P.count*3),region=new Float32Array(P.count*3);
+  const v=new THREE.Vector3();
+  const bonesOf=new Array(P.count);
+  for(let i=0;i<P.count;i++){
+    restVertex(mesh,i,v);
+    let best=0,bw=-1;
+    for(let k=0;k<4;k++){const w=SW.getComponent(i,k);if(w>bw){bw=w;best=SI.getComponent(i,k);}}
+    const bone=bones[best]||'';bonesOf[i]=bone;
+    rest[i*3]=v.x;rest[i*3+1]=v.y;rest[i*3+2]=v.z;
+    region[i*3]=/^(Hips|Spine|Spine1|Spine2)$/.test(bone)?1:0;
+    region[i*3+1]=/(Left|Right)Arm$/.test(bone)?1:0;
+    region[i*3+2]=/Leg$/.test(bone)&&!/UpLeg/.test(bone)?1:0;
+  }
+  g.setAttribute('restPosition',new THREE.BufferAttribute(rest,3));
+  g.setAttribute('bodyRegion',new THREE.BufferAttribute(region,3));
+  return {rest,bonesOf};
+}
+function restGeometries(root){
+  prepareSkinning(root);
+  const out=new Map();
+  for(const mesh of skinnedMeshes(root)){const g=mesh.geometry.clone();addRestAttributes(mesh,g);out.set(mesh.name,g);}
+  return out;
+}
+
 function dressGeometry(root,look){
   const meshes=skinnedMeshes(root);
   const a=measureAnchors(root);
@@ -120,32 +153,20 @@ function dressGeometry(root,look){
   prepareSkinning(root);
   for(const mesh of meshes){
     const g=mesh.geometry.clone();
-    const P=g.attributes.position,SI=g.attributes.skinIndex,SW=g.attributes.skinWeight;
-    const bones=mesh.skeleton.bones.map(b=>boneOf(b.name));
+    const P=g.attributes.position;
     const colors=new Float32Array(P.count*3);
-    const rest=new Float32Array(P.count*3);
-    // Region weights per vertex: x torso, y upper arm, z shin. They are 0/1
-    // per vertex and only blend inside the triangles along a joint seam.
-    const region=new Float32Array(P.count*3);
+    const {rest,bonesOf}=addRestAttributes(mesh,g);
     for(let i=0;i<P.count;i++){
-      restVertex(mesh,i,v);
-      let best=0,bw=-1;
-      for(let k=0;k<4;k++){const w=SW.getComponent(i,k);if(w>bw){bw=w;best=SI.getComponent(i,k);}}
-      const bone=bones[best]||'';
+      v.fromArray(rest,i*3);
+      const bone=bonesOf[i];
       let c=C('suit');
       const torso=/^(Hips|Spine|Spine1|Spine2)$/.test(bone);
       if(/Head|Eye|Neck/.test(bone)&&v.y>a.neck.y+.02)c=C('skin');
       else if(/Hand/.test(bone))c=C('skin');
       else if(/Foot|Toe/.test(bone)||(/Leg$/.test(bone)&&!/UpLeg/.test(bone)&&v.y<a.leftFoot.y+.07))c=v.y<.035?C('sole'):C('boots');
       colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
-      rest[i*3]=v.x;rest[i*3+1]=v.y;rest[i*3+2]=v.z;
-      region[i*3]=torso?1:0;
-      region[i*3+1]=/(Left|Right)Arm$/.test(bone)?1:0;
-      region[i*3+2]=/Leg$/.test(bone)&&!/UpLeg/.test(bone)?1:0;
     }
     g.setAttribute('color',new THREE.BufferAttribute(colors,3));
-    g.setAttribute('restPosition',new THREE.BufferAttribute(rest,3));
-    g.setAttribute('bodyRegion',new THREE.BufferAttribute(region,3));
     out.set(mesh.name,g);
   }
   return out;
@@ -255,7 +276,8 @@ function dressProps(model,role,look,a){
 // instead of following the body's large triangles.
 const coverallMaterials=new Map();
 export function tapeLayout(a){
-  const chestY=a.spine2.y-.02;
+  // Chest band sits just below the breast pockets, as in reference 2.
+  const chestY=a.spine2.y-.055;
   return {
     chestY,chestHalf:.025,               // horizontal chest band
     strapX:.1,strapHalf:.018,            // vertical shoulder straps
@@ -265,11 +287,18 @@ export function tapeLayout(a){
     beltY:a.hips.y+.07,beltHalf:.028     // belt / waistband
   };
 }
+// Hardhat block of the textured model's atlas (u0,v0,u1,v1; v down). Only the
+// hardhat geometry samples it, so recolouring it cannot touch the face.
+export const TEXTURED_HAT_UV=Object.freeze([0,.714,.262,.867]);
 function coverallMaterial(role,look,anchors){
-  if(coverallMaterials.has(role))return coverallMaterials.get(role);
+  return workwearMaterial(`coverall-${role}`,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:.02}),look,anchors);
+}
+function workwearMaterial(key,material,look,anchors,{hatUV=null}={}){
+  if(coverallMaterials.has(key))return coverallMaterials.get(key);
   const L=tapeLayout(anchors);
-  const material=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:.02});
   const uniforms={
+    uHatOn:{value:hatUV?1:0},uHat:{value:new THREE.Color(look.hat)},
+    uHatBox:{value:new THREE.Vector4(...(hatUV||[0,0,0,0]))},
     uTapeOn:{value:look.tape?1:0},uTape:{value:new THREE.Color(look.tape||'#ffffff')},
     uBand:{value:new THREE.Color(look.belt||look.waist||look.suit)},
     uChest:{value:new THREE.Vector2(L.chestY,L.chestHalf)},
@@ -288,9 +317,18 @@ function coverallMaterial(role,look,anchors){
 varying vec3 vRest;varying vec3 vRegion;
 uniform float uTapeOn;uniform vec3 uTape;uniform vec3 uBand;
 uniform vec2 uChest;uniform vec3 uStrap;uniform vec2 uArm;uniform vec2 uShin;uniform vec2 uBelt;
+uniform float uHatOn;uniform vec3 uHat;uniform vec4 uHatBox;
 // 1 inside |v-c|<h, 0 outside, with a one-pixel anti-aliased edge.
 float band(float v,float c,float h){float w=max(fwidth(v),1e-4);return 1.-smoothstep(h-w,h+w,abs(v-c));}
 float above(float v,float e){float w=max(fwidth(v),1e-4);return smoothstep(e-w,e+w,v);}`)
+      // Recolour the hardhat texels, keeping the painted shading.
+      .replace('#include <map_fragment>',`#include <map_fragment>
+#ifdef USE_MAP
+if(uHatOn>.5&&vMapUv.x>uHatBox.x&&vMapUv.x<uHatBox.z&&vMapUv.y>uHatBox.y&&vMapUv.y<uHatBox.w){
+  float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+  diffuseColor.rgb=uHat*clamp(lum/.8,0.,1.3);
+}
+#endif`)
       .replace('#include <color_fragment>',`#include <color_fragment>
 float torso=step(.5,vRegion.x),arm=step(.5,vRegion.y),shin=step(.5,vRegion.z);
 float belt=torso*band(vRest.y,uBelt.x,uBelt.y);
@@ -308,24 +346,31 @@ if(uTapeOn>.5){
       // Retroreflective tape stays bright even in shade.
       .replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=uTape*tapeAmt*.18;');
   };
-  material.customProgramCacheKey=()=>`coverall-${role}`;
-  coverallMaterials.set(role,material);
+  material.customProgramCacheKey=()=>`workwear-${key}`;
+  coverallMaterials.set(key,material);
   return material;
 }
 
 // One animated human. update(motion) is called every frame with the same
 // motion state that drives the character controller.
 export function createHuman(role='hero'){
-  const asset=role==='hero'?heroBase:base;
+  const asset=heroBase;
   if(!asset)throw new Error('Human base model not loaded');
+  const look=HUMAN_LOOKS[role]||HUMAN_LOOKS.hero;
   const model=SkeletonUtils.clone(asset.wrapper);
   const geos=asset.looks?.[role]||asset.looks?.hero;
-  // Textured hero models keep their own materials; the dressed X Bot uses the
-  // coverall material with per-pixel tape and belt.
-  const material=geos?coverallMaterial(role,HUMAN_LOOKS[role]||HUMAN_LOOKS.hero,asset.anchors):null;
+  // Dressed X Bot fallback: coverall material with per-pixel tape and belt.
+  // Textured model: the hero keeps its painted look; workers get the same
+  // texture with a blue hardhat, reflective tape and a belt drawn over it.
+  const material=geos?coverallMaterial(role,look,asset.anchors):null;
+  const dressWorker=!geos&&role==='npc'&&asset.workwear;
   model.traverse(o=>{
     if(!o.isSkinnedMesh)return;
     if(geos){o.geometry=geos.get(o.name)||o.geometry;o.material=material;}
+    else if(dressWorker){
+      o.geometry=asset.workwear.get(o.name)||o.geometry;
+      o.material=workwearMaterial(`textured-npc-${o.name}`,o.material.clone(),look,asset.anchors,{hatUV:TEXTURED_HAT_UV});
+    }
     o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
   });
   if(geos){
@@ -364,8 +409,9 @@ export function createHuman(role='hero'){
     if(role==='npc'&&speed<.05){
       state.idleFor+=dt;
       if(!state.gesture&&state.idleFor>3+state.seed){
-        state.gesture=Math.random()<.5?actions.agree:actions.headShake;
-        state.gesture.reset().setEffectiveWeight(1).fadeIn(.35).play();
+        // Models without gesture clips (the textured worker) just keep idling.
+        state.gesture=(Math.random()<.5?actions.agree:actions.headShake)||null;
+        state.gesture?.reset().setEffectiveWeight(1).fadeIn(.35).play();
         state.idleFor=0;state.seed=2+Math.random()*6;
       }
     }else state.idleFor=0;
