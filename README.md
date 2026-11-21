@@ -99,6 +99,28 @@ boatyard-simulator-3d/
 - The existing player controller still provides ground speed and jump state. The on-foot avatar walks at normal speed and blends to a run when sprinting. If the hero asset fails to load, the game uses the existing rigged worker model.
 - To update the hero asset, keep the model upright, facing +Z, and include the same three named clips. The loader scales the model to 1.8 m and aligns the bottom of the mesh to ground level.
 
+## Face and skin
+
+The textured model's head is a smooth shape with the face painted on, which reads flat, and its illustration-strength painted shadows look harsh under real lighting. Three changes give it a more lifelike face:
+
+- **Sculpted features** (`face-sculpt.js`, `face-depth.js`): at load, only the face triangles are subdivided (16× finer), then pushed along their normals by a depth field laid out on the painted landmarks. That adds a nose bridge and tip, nostril wings, a brow ridge, eye sockets, cheekbones, lips and a chin, with a 10.7 mm nose tip. The field fades to zero at the edge of the sculpted area, so there are no cracks, and a test checks this. This adds about 3,000 vertices and takes about 75 ms at load.
+- **Softer skin:** on skin texels only (not the beard, brows or eyes), the shader softens the painted contrast, lifts the darkest painted shadows and tones down the orange. It also gives the skin a satin roughness and a little warm under-skin fill.
+- **Skin and fabric relief:** a normal map built from the texture's fine detail (pores, stubble, creases, fabric weave), not its large painted shading. It's generated offline by `tools/build-relief-map.py` into `assets/characters/boatyard-worker-relief.jpg` (125 KB).
+
+**If the model is replaced,** re-measure `FACE_LANDMARKS` in `face-depth.js` against the new atlas and re-run `python3 tools/build-relief-map.py`.
+
+## Yard workers
+
+- The workers use the same textured mesh and clips as the hero. It loads once and is shared, so there is no extra download.
+- A workwear shader dresses them to match the second character reference:
+  - **Blue hardhat:** only the texels of the hardhat block in the atlas are recoloured (`TEXTURED_HAT_UV` in `human-avatar.js`), keeping the painted shading.
+  - **Reflective tape:** a chest band below the pockets, shoulder straps, upper-arm bands and shin bands.
+  - **Brown belt** at the waist.
+  - The tape and belt are drawn per pixel from each vertex's rest-pose position, so their edges stay straight and anti-aliased. The tape is slightly emissive so it reads as reflective in shade.
+- **If the textured model is replaced,** update `TEXTURED_HAT_UV` to the new atlas's hardhat area.
+- The textured model has no nod or head-shake clips, so idle workers simply stand.
+- If the textured model fails to load, the hero and the workers fall back to the dressed X Bot base.
+
 ## v0.5.0 — Realistic characters and real-time physics
 
 **Characters**

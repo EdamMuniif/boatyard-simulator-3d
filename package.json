@@ -7,7 +7,7 @@
   "scripts": {
     "start": "python3 -m http.server 8080",
     "test": "node --test *.test.mjs",
-    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js && node --check rigging-profile.js && node --check character-motion.js && node --check hoist-steering.js && node --check touch-controls.js && node --check worker-avatar.js && node --check npc-navigation.js && node --check npc-system.js && node --check vessels.js && node --check static-merge.js && node --check physics.js && node --check human-avatar.js"
+    "check": "node --check main.js && node --check world.js && node --check geometry.js && node --check rules.js && node --check collision.js && node --check rigging-profile.js && node --check character-motion.js && node --check hoist-steering.js && node --check touch-controls.js && node --check worker-avatar.js && node --check npc-navigation.js && node --check npc-system.js && node --check vessels.js && node --check static-merge.js && node --check physics.js && node --check human-avatar.js && node --check face-sculpt.js && node --check face-depth.js"
   },
   "license": "UNLICENSED"
 }

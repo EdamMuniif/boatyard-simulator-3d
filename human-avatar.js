@@ -3,11 +3,23 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import {CHARACTER_TUNING} from './character-motion.js';
 import {mergeRigidChildren} from './static-merge.js';
+import {sculptFace} from './face-sculpt.js';
 
-// The hero has a custom textured mesh on the existing Mixamo skeleton.
-// The NPCs and backup hero use the X Bot base with role-specific colors and props.
+// The hero and the yard workers share one custom textured mesh on the Mixamo
+// skeleton. Workers get a blue hardhat, reflective tape and a brown belt drawn
+// over the same texture by the workwear shader below. If the textured model
+// cannot load, everyone falls back to the X Bot base with colours and props.
 export const HUMAN_MODEL_URL=new URL('./assets/characters/worker-base.glb',import.meta.url).href;
 const HERO_MODEL_URL=new URL('./assets/characters/boatyard-worker.glb',import.meta.url).href;
+// Fine skin/fabric relief for that model, built by tools/build-relief-map.py.
+const RELIEF_MAP_URL=new URL('./assets/characters/boatyard-worker-relief.jpg',import.meta.url).href;
+async function loadReliefMap(){
+  try{
+    const tex=await new THREE.TextureLoader().loadAsync(RELIEF_MAP_URL);
+    tex.colorSpace=THREE.NoColorSpace;tex.flipY=false;tex.anisotropy=4;
+    return tex;
+  }catch(error){console.warn('Skin relief map unavailable; continuing without it.',error);return null;}
+}
 export const HUMAN_HEIGHT=1.8;
 
 export const HUMAN_LOOKS=Object.freeze({
@@ -25,15 +37,16 @@ function loadWorkerBase(){
   return basePromise;
 }
 
-export function loadHumanBase(role='hero'){
-  if(role!=='hero')return loadWorkerBase();
+export function loadHumanBase(){
   heroPromise??=new GLTFLoader().loadAsync(HERO_MODEL_URL)
-    .then(gltf=>{
+    .then(async gltf=>{
       if(!skinnedMeshes(gltf.scene).length||
         !['idle','walk','run'].every(name=>gltf.animations.some(clip=>clip.name===name))){
         throw new Error('A skinned mesh and idle, walk, and run clips are required.');
       }
-      return prepareBase(gltf,true);
+      const asset=prepareBase(gltf,true);
+      asset.relief=await loadReliefMap();
+      return asset;
     })
     .catch(error=>{
       console.warn('Custom hero unavailable, using the existing worker model.',error);
@@ -43,7 +56,7 @@ export function loadHumanBase(role='hero'){
   return heroPromise;
 }
 
-export const humanBaseReady=(role='hero')=>!!(role==='hero'?heroBase:base);
+export const humanBaseReady=()=>!!heroBase;
 
 // Stand the model on y=0 at HUMAN_HEIGHT, facing +z, with in-place clips.
 function prepareBase(gltf,textured=false){
@@ -71,7 +84,16 @@ function prepareBase(gltf,textured=false){
   const looks=textured?null:Object.fromEntries(
     Object.entries(HUMAN_LOOKS).map(([role,look])=>[role,dressGeometry(wrapper,look)])
   );
-  return {wrapper,clips,looks,stride,anchors:textured?null:measureAnchors(wrapper)};
+  // Textured model: one geometry copy carrying the rest-pose attributes the
+  // workwear shader needs (texture colours are left untouched).
+  let face=null;
+  if(textured){
+    // Give the painted face real shape (nose, brows, sockets, lips, chin).
+    prepareSkinning(wrapper);
+    face=sculptFace(wrapper,restVertex);
+  }
+  const workwear=textured?restGeometries(wrapper):null;
+  return {wrapper,clips,looks,workwear,relief:null,face,stride,anchors:measureAnchors(wrapper)};
 }
 
 const boneOf=name=>name.replace(/^mixamorig:?/,'');
@@ -111,6 +133,35 @@ function measureAnchors(root){
   return {...a,chestFront,headFront,headBack,headSide,thighOuter,crown,chin};
 }
 
+// Rest-pose position and body region (x torso, y upper arm, z shin) per
+// vertex, used by the workwear shader to draw tape and belt per pixel.
+function addRestAttributes(mesh,g){
+  const P=g.attributes.position,SI=g.attributes.skinIndex,SW=g.attributes.skinWeight;
+  const bones=mesh.skeleton.bones.map(b=>boneOf(b.name));
+  const rest=new Float32Array(P.count*3),region=new Float32Array(P.count*3);
+  const v=new THREE.Vector3();
+  const bonesOf=new Array(P.count);
+  for(let i=0;i<P.count;i++){
+    restVertex(mesh,i,v);
+    let best=0,bw=-1;
+    for(let k=0;k<4;k++){const w=SW.getComponent(i,k);if(w>bw){bw=w;best=SI.getComponent(i,k);}}
+    const bone=bones[best]||'';bonesOf[i]=bone;
+    rest[i*3]=v.x;rest[i*3+1]=v.y;rest[i*3+2]=v.z;
+    region[i*3]=/^(Hips|Spine|Spine1|Spine2)$/.test(bone)?1:0;
+    region[i*3+1]=/(Left|Right)Arm$/.test(bone)?1:0;
+    region[i*3+2]=/Leg$/.test(bone)&&!/UpLeg/.test(bone)?1:0;
+  }
+  g.setAttribute('restPosition',new THREE.BufferAttribute(rest,3));
+  g.setAttribute('bodyRegion',new THREE.BufferAttribute(region,3));
+  return {rest,bonesOf};
+}
+function restGeometries(root){
+  prepareSkinning(root);
+  const out=new Map();
+  for(const mesh of skinnedMeshes(root)){const g=mesh.geometry.clone();addRestAttributes(mesh,g);out.set(mesh.name,g);}
+  return out;
+}
+
 function dressGeometry(root,look){
   const meshes=skinnedMeshes(root);
   const a=measureAnchors(root);
@@ -120,32 +171,17 @@ function dressGeometry(root,look){
   prepareSkinning(root);
   for(const mesh of meshes){
     const g=mesh.geometry.clone();
-    const P=g.attributes.position,SI=g.attributes.skinIndex,SW=g.attributes.skinWeight;
-    const bones=mesh.skeleton.bones.map(b=>boneOf(b.name));
+    const P=g.attributes.position;
     const colors=new Float32Array(P.count*3);
+    const {rest,bonesOf}=addRestAttributes(mesh,g);
     for(let i=0;i<P.count;i++){
-      restVertex(mesh,i,v);
-      let best=0,bw=-1;
-      for(let k=0;k<4;k++){const w=SW.getComponent(i,k);if(w>bw){bw=w;best=SI.getComponent(i,k);}}
-      const bone=bones[best]||'';
+      v.fromArray(rest,i*3);
+      const bone=bonesOf[i];
       let c=C('suit');
       const torso=/^(Hips|Spine|Spine1|Spine2)$/.test(bone);
       if(/Head|Eye|Neck/.test(bone)&&v.y>a.neck.y+.02)c=C('skin');
       else if(/Hand/.test(bone))c=C('skin');
       else if(/Foot|Toe/.test(bone)||(/Leg$/.test(bone)&&!/UpLeg/.test(bone)&&v.y<a.leftFoot.y+.07))c=v.y<.035?C('sole'):C('boots');
-      else if(torso&&Math.abs(v.y-(a.hips.y+.07))<.028)c=look.belt?C('belt'):C('waist');
-      if(look.tape){
-        // Reflective tape from reference 2: chest band, shoulder straps,
-        // upper-arm bands and shin bands.
-        const chestY=a.spine2.y-.02;
-        if(torso&&Math.abs(v.y-chestY)<.025)c=C('tape');
-        if(torso&&v.y>chestY&&v.y<a.neck.y&&Math.abs(Math.abs(v.x)-.1)<.018)c=C('tape');
-        if(/(Left|Right)Arm$/.test(bone)){
-          const d=Math.abs(v.x)-Math.abs(a.leftArm.x);
-          if(d>.13&&d<.17)c=C('tape');
-        }
-        if(/Leg$/.test(bone)&&!/UpLeg/.test(bone)&&Math.abs(v.y-(a.leftFoot.y+.14))<.022)c=C('tape');
-      }
       colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
     }
     g.setAttribute('color',new THREE.BufferAttribute(colors,3));
@@ -252,17 +288,142 @@ function dressProps(model,role,look,a){
   if(look.belt)attach(hips,prop(new THREE.BoxGeometry(.05,.04,.012),'#c9d0d3',V(0,a.hips.y+.07,a.chestFront-.012),{metal:.7,rough:.3}));
 }
 
+// Coverall material: vertex colours for coveralls, skin and boots; the belt
+// (or elastic waistband) and the reflective tape are drawn per pixel from the
+// rest-pose position, so their edges are straight lines with anti-aliasing
+// instead of following the body's large triangles.
+const coverallMaterials=new Map();
+export function tapeLayout(a){
+  // Chest band sits just below the breast pockets, as in reference 2.
+  const chestY=a.spine2.y-.055;
+  return {
+    chestY,chestHalf:.025,               // horizontal chest band
+    strapX:.1,strapHalf:.018,            // vertical shoulder straps
+    strapTop:a.neck.y,
+    armFrom:Math.abs(a.leftArm.x)+.13,armTo:Math.abs(a.leftArm.x)+.17, // upper-arm band
+    shinY:a.leftFoot.y+.14,shinHalf:.022,// shin bands
+    beltY:a.hips.y+.07,beltHalf:.028     // belt / waistband
+  };
+}
+// Hardhat block of the textured model's atlas (u0,v0,u1,v1; v down). Only the
+// hardhat geometry samples it, so recolouring it cannot touch the face.
+export const TEXTURED_HAT_UV=Object.freeze([0,.714,.262,.867]);
+function coverallMaterial(role,look,anchors){
+  return workwearMaterial(`coverall-${role}`,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:.02}),look,anchors);
+}
+// Atlas area holding the painted head (face, ears, neck) and the chin strip
+// below the swatches: the only texels that get the skin treatment.
+export const TEXTURED_SKIN_UV=Object.freeze([[0,0,.533,.29],[0,.92,.383,1]]);
+function workwearMaterial(key,material,look,anchors,{hatUV=null,band=true,skin=false,relief=null}={}){
+  if(coverallMaterials.has(key))return coverallMaterials.get(key);
+  const L=tapeLayout(anchors);
+  if(relief){material.normalMap=relief;material.normalScale=new THREE.Vector2(.55,.55);}
+  const [s0,s1]=TEXTURED_SKIN_UV;
+  const uniforms={
+    uBandOn:{value:band?1:0},uSkinOn:{value:skin?1:0},
+    uSkinBox0:{value:new THREE.Vector4(...s0)},uSkinBox1:{value:new THREE.Vector4(...s1)},
+    uHatOn:{value:hatUV?1:0},uHat:{value:new THREE.Color(look.hat)},
+    uHatBox:{value:new THREE.Vector4(...(hatUV||[0,0,0,0]))},
+    uTapeOn:{value:look.tape?1:0},uTape:{value:new THREE.Color(look.tape||'#ffffff')},
+    uBand:{value:new THREE.Color(look.belt||look.waist||look.suit)},
+    uChest:{value:new THREE.Vector2(L.chestY,L.chestHalf)},
+    uStrap:{value:new THREE.Vector3(L.strapX,L.strapHalf,L.strapTop)},
+    uArm:{value:new THREE.Vector2(L.armFrom,L.armTo)},
+    uShin:{value:new THREE.Vector2(L.shinY,L.shinHalf)},
+    uBelt:{value:new THREE.Vector2(L.beltY,L.beltHalf)}
+  };
+  material.onBeforeCompile=shader=>{
+    Object.assign(shader.uniforms,uniforms);
+    shader.vertexShader=shader.vertexShader
+      .replace('#include <common>','#include <common>\nattribute vec3 restPosition;\nattribute vec3 bodyRegion;\nvarying vec3 vRest;\nvarying vec3 vRegion;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvRest=restPosition;vRegion=bodyRegion;');
+    shader.fragmentShader=shader.fragmentShader
+      .replace('#include <common>',`#include <common>
+varying vec3 vRest;varying vec3 vRegion;
+uniform float uTapeOn;uniform vec3 uTape;uniform vec3 uBand;
+uniform vec2 uChest;uniform vec3 uStrap;uniform vec2 uArm;uniform vec2 uShin;uniform vec2 uBelt;
+uniform float uHatOn;uniform vec3 uHat;uniform vec4 uHatBox;
+uniform float uBandOn;uniform float uSkinOn;uniform vec4 uSkinBox0;uniform vec4 uSkinBox1;
+float inBox(vec2 p,vec4 b){return step(b.x,p.x)*step(p.x,b.z)*step(b.y,p.y)*step(p.y,b.w);}
+// 1 inside |v-c|<h, 0 outside, with a one-pixel anti-aliased edge.
+float band(float v,float c,float h){float w=max(fwidth(v),1e-4);return 1.-smoothstep(h-w,h+w,abs(v-c));}
+float above(float v,float e){float w=max(fwidth(v),1e-4);return smoothstep(e-w,e+w,v);}`)
+      // Recolour the hardhat texels, keeping the painted shading.
+      .replace('#include <map_fragment>',`#include <map_fragment>
+float skinAmt=0.;
+#ifdef USE_MAP
+// Realistic skin: the painted face has illustration-strength shadows that,
+// on top of real 3D shading, read as harsh. On skin texels only (not beard,
+// brows or eyes): soften the painted contrast with a blurred sample, lift the
+// darkest painted shadows and take the edge off the orange saturation.
+if(uSkinOn>.5){
+  vec2 suv=vMapUv;
+  float region=max(inBox(suv,uSkinBox0),inBox(suv,uSkinBox1));
+  vec3 c=diffuseColor.rgb;
+  float lum=dot(c,vec3(.2126,.7152,.0722));
+  skinAmt=region*smoothstep(.015,.06,c.r-c.b)*smoothstep(.035,.11,lum);
+  vec3 soft=texture2D(map,suv,2.5).rgb;
+  c=mix(c,soft,.45*skinAmt);
+  c=mix(c,c*1.35+.015,skinAmt*(1.-smoothstep(.04,.32,lum))*.75);
+  float l2=dot(c,vec3(.2126,.7152,.0722));
+  c=mix(c,vec3(l2)*vec3(1.07,.97,.92),.2*skinAmt);
+  diffuseColor.rgb=c;
+}
+if(uHatOn>.5&&vMapUv.x>uHatBox.x&&vMapUv.x<uHatBox.z&&vMapUv.y>uHatBox.y&&vMapUv.y<uHatBox.w){
+  float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+  diffuseColor.rgb=uHat*clamp(lum/.8,0.,1.3);
+}
+#endif`)
+      .replace('#include <color_fragment>',`#include <color_fragment>
+float torso=step(.5,vRegion.x),arm=step(.5,vRegion.y),shin=step(.5,vRegion.z);
+float belt=uBandOn*torso*band(vRest.y,uBelt.x,uBelt.y);
+diffuseColor.rgb=mix(diffuseColor.rgb,uBand,belt);
+float tapeAmt=0.;
+if(uTapeOn>.5){
+  float chest=torso*band(vRest.y,uChest.x,uChest.y);
+  float strap=torso*band(abs(vRest.x),uStrap.x,uStrap.y)*above(vRest.y,uChest.x)*(1.-above(vRest.y,uStrap.z));
+  float ax=abs(vRest.x);
+  float armBand=arm*above(ax,uArm.x)*(1.-above(ax,uArm.y));
+  float shinBand=shin*band(vRest.y,uShin.x,uShin.y);
+  tapeAmt=clamp(max(max(chest,strap),max(armBand,shinBand)),0.,1.)*(1.-belt);
+  diffuseColor.rgb=mix(diffuseColor.rgb,uTape,tapeAmt);
+}`)
+      // Retroreflective tape stays bright even in shade.
+      // Skin: satin roughness instead of the paint's matte, and a little
+      // warm fill standing in for light scattered under the skin.
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.52,skinAmt);')
+      .replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=uTape*tapeAmt*.18;\ntotalEmissiveRadiance+=diffuseColor.rgb*vec3(1.,.82,.74)*.07*skinAmt;');
+  };
+  material.customProgramCacheKey=()=>`workwear-${key}`;
+  coverallMaterials.set(key,material);
+  return material;
+}
+
 // One animated human. update(motion) is called every frame with the same
 // motion state that drives the character controller.
 export function createHuman(role='hero'){
-  const asset=role==='hero'?heroBase:base;
+  const asset=heroBase;
   if(!asset)throw new Error('Human base model not loaded');
+  const look=HUMAN_LOOKS[role]||HUMAN_LOOKS.hero;
   const model=SkeletonUtils.clone(asset.wrapper);
   const geos=asset.looks?.[role]||asset.looks?.hero;
-  const material=geos?new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:.02}):null;
+  // Dressed X Bot fallback: coverall material with per-pixel tape and belt.
+  // Textured model: the hero keeps its painted look; workers get the same
+  // texture with a blue hardhat, reflective tape and a belt drawn over it.
+  const material=geos?coverallMaterial(role,look,asset.anchors):null;
+  const textured=!geos&&asset.workwear;
   model.traverse(o=>{
     if(!o.isSkinnedMesh)return;
     if(geos){o.geometry=geos.get(o.name)||o.geometry;o.material=material;}
+    else if(textured){
+      // Sculpted geometry with rest-pose attributes; realistic skin and fine
+      // relief for everyone; workers also get the blue hat, tape and belt.
+      o.geometry=asset.workwear.get(o.name)||o.geometry;
+      const worker=role==='npc';
+      o.material=workwearMaterial(`textured-${role}-${o.name}`,o.material.clone(),look,asset.anchors,{
+        hatUV:worker?TEXTURED_HAT_UV:null,band:worker,skin:true,relief:asset.relief
+      });
+    }
     o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
   });
   if(geos){
@@ -301,8 +462,9 @@ export function createHuman(role='hero'){
     if(role==='npc'&&speed<.05){
       state.idleFor+=dt;
       if(!state.gesture&&state.idleFor>3+state.seed){
-        state.gesture=Math.random()<.5?actions.agree:actions.headShake;
-        state.gesture.reset().setEffectiveWeight(1).fadeIn(.35).play();
+        // Models without gesture clips (the textured worker) just keep idling.
+        state.gesture=(Math.random()<.5?actions.agree:actions.headShake)||null;
+        state.gesture?.reset().setEffectiveWeight(1).fadeIn(.35).play();
         state.idleFor=0;state.seed=2+Math.random()*6;
       }
     }else state.idleFor=0;
