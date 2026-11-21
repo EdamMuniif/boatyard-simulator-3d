@@ -123,6 +123,10 @@ function dressGeometry(root,look){
     const P=g.attributes.position,SI=g.attributes.skinIndex,SW=g.attributes.skinWeight;
     const bones=mesh.skeleton.bones.map(b=>boneOf(b.name));
     const colors=new Float32Array(P.count*3);
+    const rest=new Float32Array(P.count*3);
+    // Region weights per vertex: x torso, y upper arm, z shin. They are 0/1
+    // per vertex and only blend inside the triangles along a joint seam.
+    const region=new Float32Array(P.count*3);
     for(let i=0;i<P.count;i++){
       restVertex(mesh,i,v);
       let best=0,bw=-1;
@@ -133,22 +137,15 @@ function dressGeometry(root,look){
       if(/Head|Eye|Neck/.test(bone)&&v.y>a.neck.y+.02)c=C('skin');
       else if(/Hand/.test(bone))c=C('skin');
       else if(/Foot|Toe/.test(bone)||(/Leg$/.test(bone)&&!/UpLeg/.test(bone)&&v.y<a.leftFoot.y+.07))c=v.y<.035?C('sole'):C('boots');
-      else if(torso&&Math.abs(v.y-(a.hips.y+.07))<.028)c=look.belt?C('belt'):C('waist');
-      if(look.tape){
-        // Reflective tape from reference 2: chest band, shoulder straps,
-        // upper-arm bands and shin bands.
-        const chestY=a.spine2.y-.02;
-        if(torso&&Math.abs(v.y-chestY)<.025)c=C('tape');
-        if(torso&&v.y>chestY&&v.y<a.neck.y&&Math.abs(Math.abs(v.x)-.1)<.018)c=C('tape');
-        if(/(Left|Right)Arm$/.test(bone)){
-          const d=Math.abs(v.x)-Math.abs(a.leftArm.x);
-          if(d>.13&&d<.17)c=C('tape');
-        }
-        if(/Leg$/.test(bone)&&!/UpLeg/.test(bone)&&Math.abs(v.y-(a.leftFoot.y+.14))<.022)c=C('tape');
-      }
       colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
+      rest[i*3]=v.x;rest[i*3+1]=v.y;rest[i*3+2]=v.z;
+      region[i*3]=torso?1:0;
+      region[i*3+1]=/(Left|Right)Arm$/.test(bone)?1:0;
+      region[i*3+2]=/Leg$/.test(bone)&&!/UpLeg/.test(bone)?1:0;
     }
     g.setAttribute('color',new THREE.BufferAttribute(colors,3));
+    g.setAttribute('restPosition',new THREE.BufferAttribute(rest,3));
+    g.setAttribute('bodyRegion',new THREE.BufferAttribute(region,3));
     out.set(mesh.name,g);
   }
   return out;
@@ -252,6 +249,70 @@ function dressProps(model,role,look,a){
   if(look.belt)attach(hips,prop(new THREE.BoxGeometry(.05,.04,.012),'#c9d0d3',V(0,a.hips.y+.07,a.chestFront-.012),{metal:.7,rough:.3}));
 }
 
+// Coverall material: vertex colours for coveralls, skin and boots; the belt
+// (or elastic waistband) and the reflective tape are drawn per pixel from the
+// rest-pose position, so their edges are straight lines with anti-aliasing
+// instead of following the body's large triangles.
+const coverallMaterials=new Map();
+export function tapeLayout(a){
+  const chestY=a.spine2.y-.02;
+  return {
+    chestY,chestHalf:.025,               // horizontal chest band
+    strapX:.1,strapHalf:.018,            // vertical shoulder straps
+    strapTop:a.neck.y,
+    armFrom:Math.abs(a.leftArm.x)+.13,armTo:Math.abs(a.leftArm.x)+.17, // upper-arm band
+    shinY:a.leftFoot.y+.14,shinHalf:.022,// shin bands
+    beltY:a.hips.y+.07,beltHalf:.028     // belt / waistband
+  };
+}
+function coverallMaterial(role,look,anchors){
+  if(coverallMaterials.has(role))return coverallMaterials.get(role);
+  const L=tapeLayout(anchors);
+  const material=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:.02});
+  const uniforms={
+    uTapeOn:{value:look.tape?1:0},uTape:{value:new THREE.Color(look.tape||'#ffffff')},
+    uBand:{value:new THREE.Color(look.belt||look.waist||look.suit)},
+    uChest:{value:new THREE.Vector2(L.chestY,L.chestHalf)},
+    uStrap:{value:new THREE.Vector3(L.strapX,L.strapHalf,L.strapTop)},
+    uArm:{value:new THREE.Vector2(L.armFrom,L.armTo)},
+    uShin:{value:new THREE.Vector2(L.shinY,L.shinHalf)},
+    uBelt:{value:new THREE.Vector2(L.beltY,L.beltHalf)}
+  };
+  material.onBeforeCompile=shader=>{
+    Object.assign(shader.uniforms,uniforms);
+    shader.vertexShader=shader.vertexShader
+      .replace('#include <common>','#include <common>\nattribute vec3 restPosition;\nattribute vec3 bodyRegion;\nvarying vec3 vRest;\nvarying vec3 vRegion;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvRest=restPosition;vRegion=bodyRegion;');
+    shader.fragmentShader=shader.fragmentShader
+      .replace('#include <common>',`#include <common>
+varying vec3 vRest;varying vec3 vRegion;
+uniform float uTapeOn;uniform vec3 uTape;uniform vec3 uBand;
+uniform vec2 uChest;uniform vec3 uStrap;uniform vec2 uArm;uniform vec2 uShin;uniform vec2 uBelt;
+// 1 inside |v-c|<h, 0 outside, with a one-pixel anti-aliased edge.
+float band(float v,float c,float h){float w=max(fwidth(v),1e-4);return 1.-smoothstep(h-w,h+w,abs(v-c));}
+float above(float v,float e){float w=max(fwidth(v),1e-4);return smoothstep(e-w,e+w,v);}`)
+      .replace('#include <color_fragment>',`#include <color_fragment>
+float torso=step(.5,vRegion.x),arm=step(.5,vRegion.y),shin=step(.5,vRegion.z);
+float belt=torso*band(vRest.y,uBelt.x,uBelt.y);
+diffuseColor.rgb=mix(diffuseColor.rgb,uBand,belt);
+float tapeAmt=0.;
+if(uTapeOn>.5){
+  float chest=torso*band(vRest.y,uChest.x,uChest.y);
+  float strap=torso*band(abs(vRest.x),uStrap.x,uStrap.y)*above(vRest.y,uChest.x)*(1.-above(vRest.y,uStrap.z));
+  float ax=abs(vRest.x);
+  float armBand=arm*above(ax,uArm.x)*(1.-above(ax,uArm.y));
+  float shinBand=shin*band(vRest.y,uShin.x,uShin.y);
+  tapeAmt=clamp(max(max(chest,strap),max(armBand,shinBand)),0.,1.)*(1.-belt);
+  diffuseColor.rgb=mix(diffuseColor.rgb,uTape,tapeAmt);
+}`)
+      // Retroreflective tape stays bright even in shade.
+      .replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=uTape*tapeAmt*.18;');
+  };
+  material.customProgramCacheKey=()=>`coverall-${role}`;
+  coverallMaterials.set(role,material);
+  return material;
+}
+
 // One animated human. update(motion) is called every frame with the same
 // motion state that drives the character controller.
 export function createHuman(role='hero'){
@@ -259,7 +320,9 @@ export function createHuman(role='hero'){
   if(!asset)throw new Error('Human base model not loaded');
   const model=SkeletonUtils.clone(asset.wrapper);
   const geos=asset.looks?.[role]||asset.looks?.hero;
-  const material=geos?new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:.02}):null;
+  // Textured hero models keep their own materials; the dressed X Bot uses the
+  // coverall material with per-pixel tape and belt.
+  const material=geos?coverallMaterial(role,HUMAN_LOOKS[role]||HUMAN_LOOKS.hero,asset.anchors):null;
   model.traverse(o=>{
     if(!o.isSkinnedMesh)return;
     if(geos){o.geometry=geos.get(o.name)||o.geometry;o.material=material;}
